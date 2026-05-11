@@ -59,9 +59,11 @@ let flickerAlpha = 0;
 let staticBurst = false, staticTimer = 0;
 let pg; // offscreen buffer
 let vignetteBuffer;
+let scanlineBuffer; // pre-rendered scanlines
 let barrelLUT; // pre-computed distortion map
 let caOffset = 1; // chromatic aberration offset (subtle)
 let barrelK = 0.012; // barrel distortion strength (subtle)
+let rowShifts = []; // reused each frame — no GC churn
 
 // Bobo glitch state
 let boboGlitchTimer = 0;
@@ -86,6 +88,11 @@ function setup() {
   } else {
     img.resize(0, floor(height / resolution));
   }
+  // Cache pixels once — img never changes after resize
+  img.loadPixels();
+
+  // Pre-allocate rowShifts to avoid GC churn every frame
+  for (let i = 0; i < img.height; i++) rowShifts.push(0);
 
   // Offscreen buffer for post-processing
   pg = createGraphics(width, height);
@@ -133,6 +140,16 @@ function setup() {
   vignetteBuffer = createGraphics(width, height);
   vignetteBuffer.pixelDensity(1);
   drawVignetteBuffer();
+
+  // Pre-render scanlines to a buffer — replaces ~194 line() calls per frame
+  scanlineBuffer = createGraphics(width, height);
+  scanlineBuffer.pixelDensity(1);
+  scanlineBuffer.clear();
+  scanlineBuffer.stroke(0, 30);
+  scanlineBuffer.strokeWeight(1);
+  for (let y = 0; y < height; y += 3) {
+    scanlineBuffer.line(0, y, width, y);
+  }
 }
 
 function draw() {
@@ -207,11 +224,11 @@ function drawMainLoop() {
   drawPrompt(pg);
   drawBoboOSLabel(pg);
 
-  // Post-process: barrel distortion + chromatic aberration
+  // Post-process: barrel distortion + chromatic aberration + noise (single pixel pass)
+  tickNoiseStatic();
   applyDistortion();
 
   // Overlays on main canvas
-  drawNoiseStatic();
   drawScanlines();
   drawVignette();
 
@@ -224,51 +241,65 @@ function drawMainLoop() {
 // ═══════════════════════════════════
 // POST-PROCESSING (barrel + chromatic aberration)
 // ═══════════════════════════════════
+// Single merged pixel pass: barrel distortion + chromatic aberration + noise static
+// Replaces two separate loadPixels/updatePixels round-trips per frame.
 function applyDistortion() {
   pg.loadPixels();
   loadPixels();
   let src = pg.pixels;
   let dst = pixels;
   let w = width, h = height;
-
-  // Edge margin: don't apply CA within this many pixels of the edge
-  // to prevent blue/purple fringing
   let edgeMargin = 4;
+
+  // Pre-compute static noise pixels for this frame in one shot
+  let noiseSet = null;
+  if (staticBurst) {
+    let num = floor(w * h * 0.03);
+    noiseSet = new Uint32Array(num);
+    for (let i = 0; i < num; i++) {
+      noiseSet[i] = floor(random(w)) + floor(random(h)) * w;
+    }
+  }
 
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       let lutIdx = (y * w + x) * 2;
       let sx = barrelLUT[lutIdx];
       let sy = barrelLUT[lutIdx + 1];
-
       let dIdx = (y * w + x) * 4;
 
-      // Near canvas edges: skip CA entirely, just use barrel distortion
       if (x < edgeMargin || x >= w - edgeMargin || y < edgeMargin || y >= h - edgeMargin) {
         let idx = (sy * w + sx) * 4;
-        dst[dIdx] = src[idx];
+        dst[dIdx]     = src[idx];
         dst[dIdx + 1] = src[idx + 1];
         dst[dIdx + 2] = src[idx + 2];
         dst[dIdx + 3] = 255;
       } else {
-        // Red channel - shifted left
         let rsx = constrain(sx - caOffset, 0, w - 1);
         let rIdx = (sy * w + rsx) * 4;
-
-        // Green channel - center
         let gIdx = (sy * w + sx) * 4;
-
-        // Blue channel - shifted right
         let bsx = constrain(sx + caOffset, 0, w - 1);
         let bIdx = (sy * w + bsx) * 4;
-
-        dst[dIdx] = src[rIdx];
+        dst[dIdx]     = src[rIdx];
         dst[dIdx + 1] = src[gIdx + 1];
         dst[dIdx + 2] = src[bIdx + 2];
         dst[dIdx + 3] = 255;
       }
     }
   }
+
+  // Splat noise pixels directly into dst without a second loadPixels pass
+  if (noiseSet) {
+    for (let i = 0; i < noiseSet.length; i++) {
+      let idx = noiseSet[i] * 4;
+      let n = random(255);
+      dst[idx]     = n;
+      dst[idx + 1] = n * 0.1;
+      dst[idx + 2] = n * 0.15;
+      dst[idx + 3] = 255;
+    }
+  }
+
   updatePixels();
 }
 
@@ -456,7 +487,7 @@ function drawMatrixRain(g) {
 // BOBO ASCII (frenetic + glitch breaks)
 // ═══════════════════════════════════
 function drawBoboASCII(g, breathe) {
-  img.loadPixels();
+  // img.pixels already cached from setup() — no loadPixels() here
   g.textAlign(LEFT, TOP);
   g.noStroke();
 
@@ -482,15 +513,14 @@ function drawBoboASCII(g, breathe) {
   if (boboGlitchTimer > 0) boboGlitchTimer--;
   else boboGlitchMode = 0;
 
-  // Row-level shift for frenetic feel
-  let rowShifts = [];
+  // Row-level shift — reuse pre-allocated array to avoid GC
   for (let y = 0; y < img.height; y++) {
     if (boboGlitchMode === 2 && random(1) < 0.3) {
-      rowShifts.push(random(-40, 40));
+      rowShifts[y] = random(-40, 40);
     } else if (random(1) < 0.04) {
-      rowShifts.push(random(-15, 15));
+      rowShifts[y] = random(-15, 15);
     } else {
-      rowShifts.push(0);
+      rowShifts[y] = 0;
     }
   }
 
@@ -580,19 +610,11 @@ function drawScreenTear(g) {
 // ═══════════════════════════════════
 // NOISE / STATIC
 // ═══════════════════════════════════
-function drawNoiseStatic() {
+// drawNoiseStatic is now merged into applyDistortion to avoid a second
+// loadPixels/updatePixels round-trip. This stub manages state only.
+function tickNoiseStatic() {
   if (random(1) < 0.04) { staticBurst = true; staticTimer = floor(random(3, 8)); }
   if (staticBurst) {
-    loadPixels();
-    let num = floor(width * height * 0.03);
-    for (let i = 0; i < num; i++) {
-      let px = floor(random(width));
-      let py = floor(random(height));
-      let idx = (px + py * width) * 4;
-      let n = random(255);
-      pixels[idx] = n; pixels[idx + 1] = n * 0.1; pixels[idx + 2] = n * 0.15; pixels[idx + 3] = 255;
-    }
-    updatePixels();
     staticTimer--;
     if (staticTimer <= 0) staticBurst = false;
   }
@@ -749,9 +771,9 @@ function drawPrompt(g) {
 // SCANLINES
 // ═══════════════════════════════════
 function drawScanlines() {
-  stroke(0, 30);
-  strokeWeight(1);
-  for (let y = 0; y < height; y += 3) { line(0, y, width, y); }
+  // Static scanline grid drawn from pre-rendered buffer (replaces ~194 line() calls)
+  image(scanlineBuffer, 0, 0);
+  // Animated sweep bar still drawn live (only 2 rects)
   let scanY = (frameCount * 3) % height;
   noStroke();
   fill(190, 1, 41, 12); rect(0, scanY, width, 40);
