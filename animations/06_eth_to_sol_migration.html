@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — ETH to SOL Migration</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG = [5, 0, 2], RED = [190, 1, 41], RB = [255, 50, 90], CREAM = [254, 225, 191], MUTED = [138, 123, 120];
+
+    let particles = [], pulsePhase = 0;
+    const NL = { x: 180, y: cH / 2 }, NR = { x: 620, y: cH / 2 };
+
+    function dArc(cx, cy, r, n) { let g = TWO_PI / n, l = g * .55; for (let i = 0; i < n; i++) arc(cx, cy, r * 2, r * 2, i * g, i * g + l); }
+    function brackets(ox, oy, w, h, margin, bkL) {
+      stroke(RED[0], RED[1], RED[2], 100); strokeWeight(1.2);
+      line(ox-margin,oy-margin,ox-margin+bkL,oy-margin); line(ox-margin,oy-margin,ox-margin,oy-margin+bkL);
+      line(ox+w+margin,oy-margin,ox+w+margin-bkL,oy-margin); line(ox+w+margin,oy-margin,ox+w+margin,oy-margin+bkL);
+      line(ox-margin,oy+h+margin,ox-margin+bkL,oy+h+margin); line(ox-margin,oy+h+margin,ox-margin,oy+h+margin-bkL);
+      line(ox+w+margin,oy+h+margin,ox+w+margin-bkL,oy+h+margin); line(ox+w+margin,oy+h+margin,ox+w+margin,oy+h+margin-bkL);
+    }
+    function bz(x1, y1, cx1, cy1, cx2, cy2, x2, y2, t) { return { x: bezierPoint(x1, cx1, cx2, x2, t), y: bezierPoint(y1, cy1, cy2, y2, t) }; }
+    function chev(x, y, s) { beginShape(); vertex(x-s,y-s/2); vertex(x,y); vertex(x-s,y+s/2); endShape(); beginShape(); vertex(x-s/2,y-s/2); vertex(x+s/2,y); vertex(x-s/2,y+s/2); endShape(); }
+
+    class Particle {
+      constructor() { this.t = random(); this.spd = random(.005, .012); this.sz = random(2.5, 4.5); this.br = random(180, 255); this.trail = []; }
+      update() {
+        this.t += this.spd; if (this.t >= 1) { this.t = 0; this.trail = []; pulsePhase = 0.5; }
+        let p = bz(NL.x, NL.y, NL.x + 120, NL.y - 100, NR.x - 120, NR.y + 100, NR.x, NR.y, this.t);
+        this.trail.push(p); if (this.trail.length > 12) this.trail.shift();
+      }
+      draw() {
+        if (this.trail.length > 1) {
+          noFill();
+          for (let i = 0; i < this.trail.length - 1; i++) {
+            let a = map(i, 0, this.trail.length - 1, 0, 180);
+            let w = map(i, 0, this.trail.length - 1, .5, this.sz * 1.2);
+            strokeWeight(w); stroke(RED[0], RED[1], RED[2], a);
+            line(this.trail[i].x, this.trail[i].y, this.trail[i + 1].x, this.trail[i + 1].y);
+          }
+        }
+        let p = this.trail[this.trail.length - 1]; if (!p) return;
+        drawingContext.shadowBlur = 14; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.9)`;
+        noStroke(); fill(RB[0], RB[1], RB[2], this.br); ellipse(p.x, p.y, this.sz);
+        fill(255, 255, 255, 200); ellipse(p.x, p.y, this.sz * 0.4);
+        drawingContext.shadowBlur = 0;
+      }
+    }
+
+    function setup() {
+      createCanvas(W, H); pixelDensity(2); noSmooth(); textFont('monospace');
+      for (let i = 0; i < 20; i++) particles.push(new Particle());
+    }
+
+    function draw() {
+      background(BG[0], BG[1], BG[2]);
+      push(); scale(W / cW);
+      drawGrid();
+
+      // Connection curve
+      noFill(); drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.35)`;
+      stroke(RED[0], RED[1], RED[2], 40); strokeWeight(1.5);
+      bezier(NL.x, NL.y, NL.x + 120, NL.y - 100, NR.x - 120, NR.y + 100, NR.x, NR.y);
+      stroke(255, 255, 255, 12); strokeWeight(0.4);
+      bezier(NL.x, NL.y, NL.x + 120, NL.y - 100, NR.x - 120, NR.y + 100, NR.x, NR.y);
+      drawingContext.shadowBlur = 0;
+
+      for (let p of particles) { p.update(); p.draw(); }
+
+      drawETHNode();
+      drawSOLNode();
+
+      // Chevrons along the path
+      drawingContext.shadowBlur = 4; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.4)`;
+      stroke(RED[0], RED[1], RED[2], 60); strokeWeight(1); noFill();
+      chev(cW / 2, cH / 2 - 30, 6);
+      chev(cW / 2 + 30, cH / 2 - 10, 6);
+      drawingContext.shadowBlur = 0;
+
+      pulsePhase *= .93;
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0], RED[1], RED[2], 30); strokeWeight(1);
+      let offY = (frameCount * .3) % 40;
+      for (let x = 0; x < cW; x += 40) line(x, 0, x, cH);
+      for (let y = -40; y < cH + 40; y += 40) line(0, y + offY, cW, y + offY);
+      noStroke(); fill(RED[0], RED[1], RED[2], 80);
+      for (let x = 0; x < cW; x += 40) for (let y = -40; y < cH + 40; y += 40) rect(x - 1, y + offY - 1, 2, 2);
+    }
+
+    function drawETHNode() {
+      let cx = NL.x, cy = NL.y;
+      push(); translate(cx, cy);
+
+      // Glitchy rotating arcs (dimmed — broken)
+      let glitch = (frameCount % 25 < 4) ? random(-4, 4) : 0;
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(${MUTED[0]},${MUTED[1]},${MUTED[2]},.3)`;
+      stroke(MUTED[0], MUTED[1], MUTED[2], 50); strokeWeight(1); noFill();
+      push(); rotate(frameCount * 0.01 + glitch * 0.05); dArc(0, 0, 65, 3); pop();
+      push(); rotate(-frameCount * 0.008); dArc(0, 0, 80, 4); pop();
+      drawingContext.shadowBlur = 0;
+
+      // ETH diamond shape (broken)
+      let rW = 80, rH = 110, ox = -rW / 2, oy = -rH / 2;
+      stroke(MUTED[0], MUTED[1], MUTED[2], 100 + glitch * 10); strokeWeight(1.5); fill(BG[0], BG[1], BG[2], 200);
+      rect(ox + glitch, oy + glitch, rW, rH, 4);
+
+      // Fake data bars (dim, broken)
+      for (let i = 0; i < 4; i++) {
+        let bY = oy + 12 + i * 22;
+        stroke(MUTED[0], MUTED[1], MUTED[2], 40); strokeWeight(1); noFill();
+        rect(ox + 8 + glitch, bY + glitch, rW - 16, 10, 2);
+        noStroke();
+        let blink = (frameCount % (25 + i * 5) < 5) ? 120 : 20;
+        fill(MUTED[0], MUTED[1], MUTED[2], blink); ellipse(ox + rW - 14 + glitch, bY + 5 + glitch, 3, 3);
+      }
+      drawingContext.shadowBlur = 0;
+      pop();
+
+      brackets(cx - 50, cy - 65, 100, 130, 8, 12);
+
+      noStroke();
+      fill(MUTED[0], MUTED[1], MUTED[2], 200); textSize(10); textAlign(CENTER, CENTER);
+      text("ETH MAINNET", cx, cy + 85);
+      fill(MUTED[0], MUTED[1], MUTED[2], 120); textSize(8);
+      text("DEPRECATED  \u00b7  GAS: $40", cx, cy + 99);
+    }
+
+    function drawSOLNode() {
+      let cx = NR.x, cy = NR.y;
+      push(); translate(cx, cy);
+
+      // Blazing rotating arcs
+      drawingContext.shadowBlur = 14; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      stroke(RED[0], RED[1], RED[2], 120); strokeWeight(1); noFill();
+      push(); rotate(frameCount * 0.02); dArc(0, 0, 65, 3); pop();
+      push(); rotate(-frameCount * 0.015); dArc(0, 0, 80, 4); pop();
+      drawingContext.shadowBlur = 0;
+
+      let rW = 80, rH = 110, ox = -rW / 2, oy = -rH / 2;
+      drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 200); strokeWeight(1.5); fill(BG[0], BG[1], BG[2], 200);
+      rect(ox, oy, rW, rH, 4);
+
+      for (let i = 0; i < 4; i++) {
+        let bY = oy + 12 + i * 22;
+        stroke(RED[0], RED[1], RED[2], 60); strokeWeight(1.5); noFill();
+        rect(ox + 8, bY, rW - 16, 10, 2);
+        noStroke();
+        let blink = (frameCount % (18 + i * 5) < 10) ? 255 : 40;
+        fill(RB[0], RB[1], RB[2], blink); ellipse(ox + rW - 14, bY + 5, 4, 4);
+        let blink2 = (frameCount % (30 + i * 4) < 15) ? 200 : 30;
+        fill(CREAM[0], CREAM[1], CREAM[2], blink2); ellipse(ox + rW - 24, bY + 5, 3, 3);
+        stroke(RED[0], RED[1], RED[2], 40); strokeWeight(1); line(ox + 14, bY + 5, ox + rW - 36, bY + 5);
+      }
+      drawingContext.shadowBlur = 0;
+      pop();
+
+      brackets(cx - 50, cy - 65, 100, 130, 8, 12);
+
+      noStroke();
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},.4)`;
+      fill(CREAM[0], CREAM[1], CREAM[2], 255); textSize(10); textAlign(CENTER, CENTER);
+      text("SOLANA TRENCHES", cx, cy + 85);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 180); textSize(8);
+      text("ACTIVE  \u00b7  BOBO BILLIONS", cx, cy + 99);
+    }
+
+    function drawHUD() {
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      noStroke(); fill(RED[0], RED[1], RED[2], 255); textSize(13); textAlign(LEFT, TOP);
+      text("LIQUIDITY MIGRATION", 24, 24);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 200); textSize(8.5);
+      text("bobo_OS v6.9  \u00b7  CROSS-CHAIN BRIDGE", 24, 40);
+
+      textSize(13); textAlign(RIGHT, TOP);
+      let label = (frameCount % 60 < 30) ? "bobo_OS_" : "bobo_OS ";
+      fill(RED[0], RED[1], RED[2], 255); text(label, cW - 23, 18);
+      stroke(RED[0], RED[1], RED[2], 50); strokeWeight(.5); line(cW - 120, 36, cW - 8, 36);
+      noStroke(); fill(RED[0], RED[1], RED[2], 160); textSize(8.5); textAlign(RIGHT, TOP);
+      text("SYS " + nf(hour(), 2) + ":" + nf(minute(), 2) + ":" + nf(second(), 2), cW - 23, 42);
+      fill(MUTED[0], MUTED[1], MUTED[2], 120); textSize(7.5); text("FRM " + nf(frameCount, 6), cW - 23, 54);
+
+      noStroke(); fill(RED[0], RED[1], RED[2], 200); textSize(9); textAlign(LEFT, BOTTOM);
+      text("\u25c6 BRIDGE: ACTIVE  \u25c6 TREASURY: MIGRATED  \u25c6 LAT: " + nf(random(8, 24), 1, 1) + "ms  \u25c6 " + floor(random(2400, 6800)) + " TX/s", 24, cH - 14);
+    }
+
+    function drawScanlines() {
+      noStroke(); for (let y = 0; y < cH; y += 3) { fill(0, 0, 0, 16); rect(0, y, cW, 1); }
+      let sy = (frameCount * 3) % cH; fill(RED[0], RED[1], RED[2], 8); rect(0, sy, cW, 30);
+      fill(RED[0], RED[1], RED[2], 15); rect(0, sy + 10, cW, 4);
+    }
+  </script>
+</body>
+</html>

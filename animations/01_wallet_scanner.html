@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — Wallet Interrogator</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG = [5, 0, 2], RED = [190, 1, 41], RB = [255, 50, 90], CREAM = [254, 225, 191], MUTED = [138, 123, 120];
+
+    const SILO = [
+      [0,1],[.89,1],[.86,.90],[.85,.83],[.83,.76],[.80,.72],[.75,.69],[.72,.68],
+      [.73,.66],[.78,.65],[.82,.63],[.85,.59],[.89,.54],[.90,.49],[.94,.44],[.95,.42],
+      [.98,.39],[1,.29],[.97,.24],[.92,.19],[.86,.14],[.83,.12],[.88,.09],[.87,.04],
+      [.83,0],[.78,0],[.73,.02],[.70,.05],[.64,.06],[.58,.08],[.54,.11],[.45,.07],
+      [.37,.07],[.32,.08],[.30,.03],[.23,0],[.17,.02],[.15,.07],[.17,.11],[.19,.14],
+      [.19,.20],[.18,.25],[.12,.28],[.09,.36],[.07,.45],[.05,.52],[.05,.61],[.08,.66],
+      [.09,.68],[.05,.72],[.03,.79],[.02,.85],[0,.92]
+    ];
+
+    let asciiLines = [];
+    let sweepAngle = 0, termLines = [], scanDots = [], pulsePhase = 0;
+    let logoImg;
+
+    const FEEDS = [
+      "> SCAN 7b3wY...SmxE", "> RUG PULL #1: CONFIRMED", "> RUG PULL #2: CONFIRMED",
+      "> PANIC SELL: 14 EVENTS", "> $BOBO BALANCE: 0", "> STATUS: DUST WALLET",
+      "> RANK: PEASANT", "> ROAST CONFIDENCE: 99.7%", "> LOADING MOCKERY.EXE",
+      "> SARCASM LEVEL: MAXIMUM", "> COPE INDEX: OFF CHART", "> TWEET: ARMED",
+    ];
+
+    function preload() { 
+      loadStrings('assets/ascii/ascii-art.txt', r => asciiLines = r); 
+      logoImg = loadImage('assets/logo-p-500.png');
+    }
+
+    let targetAngle = 0, targetRadius = 60;
+    let targetWallet = "", targetBags = "", targetHistory = "", targetRank = "", targetFails = "", targetVerdict = "";
+    let targetAcquired = false, targetAcquiredFrame = 0;
+
+    function generateTarget() {
+      targetAngle = random(TWO_PI);
+      targetRadius = random(20, 110);
+      targetAcquired = false;
+      
+      const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      let addr = '';
+      for(let i=0; i<4; i++) addr += chars[floor(random(chars.length))];
+      addr += '...';
+      for(let i=0; i<4; i++) addr += chars[floor(random(chars.length))];
+      targetWallet = addr;
+
+      const bagsOpts = [
+        "99% SHITCOINS, 0% $BOBO",
+        "100% MEMECOINS, DOWN 90%",
+        "ALL IN ON DEAD PROJECTS",
+        "50% $SOL, 50% DUST",
+        "HEAVILY INVESTED IN COPE"
+      ];
+      targetBags = random(bagsOpts);
+
+      const historyOpts = [
+        "3 RUGS, 2 PANIC SELLS",
+        "BOUGHT THE TOP 5 TIMES",
+        "SOLD EARLY ON $BOBO",
+        "REKT ON FUTURES",
+        "SERIAL PAPER HANDER"
+      ];
+      targetHistory = random(historyOpts);
+
+      const rankOpts = [
+        "PEASANT (DUST)",
+        "JEET (WEAK HANDS)",
+        "LIQUIDITY PROVIDER (REKT)",
+        "BAGHOLDER (MAXIMUM)",
+        "NPC WALLET"
+      ];
+      targetRank = random(rankOpts);
+
+      targetFails = "FAILED MINTS: " + floor(random(2, 15));
+      
+      const verdicts = [
+        ">> INITIATING PUBLIC MOCKERY <<",
+        ">> DEPLOYING MAXIMUM ROAST <<",
+        ">> SARCASM PROTOCOL ENGAGED <<",
+        ">> PREPARING TIMELINE SHAMING <<",
+        ">> COPE LEVELS CRITICAL. ROASTING. <<"
+      ];
+      targetVerdict = random(verdicts);
+    }
+    function addFeed() { termLines.unshift({ text: random(FEEDS), age: 0, chars: 0 }); if (termLines.length > 8) termLines.pop(); }
+    function dArc(cx, cy, r, n) { let g = TWO_PI / n, l = g * .55; for (let i = 0; i < n; i++) arc(cx, cy, r * 2, r * 2, i * g, i * g + l); }
+    function brackets(ox, oy, w, h, margin, bkL) {
+      stroke(RED[0], RED[1], RED[2], 100); strokeWeight(1.2);
+      line(ox-margin,oy-margin,ox-margin+bkL,oy-margin); line(ox-margin,oy-margin,ox-margin,oy-margin+bkL);
+      line(ox+w+margin,oy-margin,ox+w+margin-bkL,oy-margin); line(ox+w+margin,oy-margin,ox+w+margin,oy-margin+bkL);
+      line(ox-margin,oy+h+margin,ox-margin+bkL,oy+h+margin); line(ox-margin,oy+h+margin,ox-margin,oy+h+margin-bkL);
+      line(ox+w+margin,oy+h+margin,ox+w+margin-bkL,oy+h+margin); line(ox+w+margin,oy+h+margin,ox+w+margin,oy+h+margin-bkL);
+    }
+
+    function setup() {
+      createCanvas(W, H); pixelDensity(2); noSmooth(); textFont('monospace');
+      generateTarget();
+      for (let i = 0; i < 5; i++) addFeed();
+    }
+
+    function draw() {
+      background(BG[0], BG[1], BG[2]);
+      push(); scale(W / cW);
+
+      drawGrid();
+
+      // Faint ASCII art background
+      if (asciiLines.length) {
+        fill(RED[0], RED[1], RED[2], 8); noStroke(); textSize(5); textLeading(5); textAlign(LEFT, TOP);
+        text(asciiLines.join('\n'), cW - 380, 60);
+      }
+
+      drawRadar();
+      drawTerminal();
+      drawTargetPanel();
+
+      if (!targetAcquired) {
+        let prevAngle = (sweepAngle - 0.04) % TWO_PI;
+        let currAngle = sweepAngle % TWO_PI;
+        let nTarget = (targetAngle % TWO_PI + TWO_PI) % TWO_PI;
+        
+        let hit = false;
+        if (prevAngle < currAngle) {
+          if (nTarget >= prevAngle && nTarget <= currAngle) hit = true;
+        } else {
+          if (nTarget >= prevAngle || nTarget <= currAngle) hit = true;
+        }
+        
+        if (hit) {
+          targetAcquired = true;
+          targetAcquiredFrame = frameCount;
+        }
+      } else {
+        if (frameCount - targetAcquiredFrame > 490) {
+          generateTarget();
+        }
+      }
+
+      pulsePhase *= .93; sweepAngle += 0.04;
+      
+      if (targetAcquired && (frameCount - targetAcquiredFrame) < 45) {
+         if (frameCount % 2 === 0) {
+            const chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+            let b58 = "> ";
+            for(let i=0; i<42; i++) b58 += chars[floor(random(chars.length))];
+            termLines.unshift({ text: b58, age: 0, chars: 44 }); 
+            if (termLines.length > 8) termLines.pop();
+         }
+      } else {
+         if (frameCount % 60 === 0) addFeed();
+      }
+
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0], RED[1], RED[2], 30); strokeWeight(1);
+      let offY = (frameCount * .3) % 40;
+      for (let x = 0; x < cW; x += 40) line(x, 0, x, cH);
+      for (let y = -40; y < cH + 40; y += 40) line(0, y + offY, cW, y + offY);
+      noStroke(); fill(RED[0], RED[1], RED[2], 80);
+      for (let x = 0; x < cW; x += 40) for (let y = -40; y < cH + 40; y += 40) rect(x - 1, y + offY - 1, 2, 2);
+    }
+
+    function drawRadar() {
+      let cx = 280, cy = cH / 2;
+
+      // Rotating arcs
+      push(); translate(cx, cy);
+      drawingContext.shadowBlur = 12; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 80); strokeWeight(1); noFill();
+      push(); rotate(frameCount * 0.015); dArc(0, 0, 85, 3); pop();
+      push(); rotate(-frameCount * 0.01); dArc(0, 0, 105, 4); pop();
+      drawingContext.shadowBlur = 0;
+      pop();
+
+      // Rings
+      noFill(); stroke(RED[0], RED[1], RED[2], 40); strokeWeight(1);
+      circle(cx, cy, 100); circle(cx, cy, 180); circle(cx, cy, 260);
+      // White inner ring
+      stroke(255, 255, 255, 15); strokeWeight(0.3);
+      circle(cx, cy, 100); circle(cx, cy, 180);
+
+      // Sweep Line
+      drawingContext.shadowBlur = 18; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},1)`;
+      stroke(RB[0], RB[1], RB[2], 200); strokeWeight(2);
+      let sx = cx + cos(sweepAngle) * 130, sy = cy + sin(sweepAngle) * 130;
+      line(cx, cy, sx, sy);
+      // White core on sweep
+      stroke(255, 255, 255, 150); strokeWeight(0.5);
+      line(cx, cy, sx, sy);
+      drawingContext.shadowBlur = 0;
+
+      // Fade trail
+      noStroke(); fill(RED[0], RED[1], RED[2], 15);
+      arc(cx, cy, 260, 260, sweepAngle - 0.6, sweepAngle);
+
+      // Corner brackets
+      brackets(cx - 140, cy - 140, 280, 280, 8, 14);
+
+      // Label
+      noStroke();
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},.4)`;
+      fill(CREAM[0], CREAM[1], CREAM[2], 255); textSize(10); textAlign(CENTER, CENTER);
+      text("WALLET RADAR", cx, cy + 160);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 180); textSize(8); text("SCANNING NODE", cx, cy + 174);
+    }
+
+    function drawTargetPanel() {
+      if (!targetAcquired) return;
+      let cycle = frameCount - targetAcquiredFrame;
+
+      let cx = 280, cy = cH / 2;
+      // Target dot
+      let tx = cx + cos(targetAngle) * targetRadius;
+      let ty = cy + sin(targetAngle) * targetRadius;
+
+      let animT = 0;
+      if (cycle > 20 && cycle <= 70) animT = map(cycle, 20, 70, 0, 1);
+      else if (cycle > 70 && cycle <= 450) animT = 1;
+      else if (cycle > 450 && cycle <= 480) animT = map(cycle, 450, 480, 1, 0);
+      else if (cycle > 480) animT = 0;
+
+      let eT = 1 - Math.pow(1 - animT, 3);
+
+      if (eT > 0) {
+        let p0 = {x: tx, y: ty};
+        let p1 = {x: tx + 30, y: ty - 40};
+        let p2 = {x: tx + 55, y: ty - 40};
+        
+        stroke(RED[0], RED[1], RED[2], 120); strokeWeight(1); noFill();
+        
+        let t1 = constrain(map(eT, 0, 0.3, 0, 1), 0, 1);
+        if (t1 > 0) line(p0.x, p0.y, lerp(p0.x, p1.x, t1), lerp(p0.y, p1.y, t1));
+        
+        let t2 = constrain(map(eT, 0.3, 0.6, 0, 1), 0, 1);
+        if (t2 > 0) line(p1.x, p1.y, lerp(p1.x, p2.x, t2), lerp(p1.y, p2.y, t2));
+        
+        let t3 = constrain(map(eT, 0.6, 1.0, 0, 1), 0, 1);
+        if (t3 > 0) {
+           let pw = 250, ph = 120, py = ty - 80;
+           push();
+           translate(p2.x, p2.y);
+           scale(t3, t3);
+           
+           let localY = py - p2.y; // -40
+           drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+           stroke(RED[0], RED[1], RED[2], 150); strokeWeight(1.5); fill(BG[0], BG[1], BG[2], 230);
+           rect(0, localY, pw, ph, 2);
+           line(0, localY + 16, pw, localY + 16);
+           drawingContext.shadowBlur = 0;
+
+           // Header
+           noStroke(); fill(RB[0], RB[1], RB[2], 255); textSize(8.5); textAlign(LEFT, CENTER);
+           text("\u25b8 TARGET ACQUIRED", 6, localY + 8);
+           if (frameCount % 40 < 20) { fill(RB[0], RB[1], RB[2]); ellipse(pw - 8, localY + 8, 4, 4); }
+
+           textSize(7.5); textAlign(LEFT, TOP);
+           let lines = [
+             { t: "WALLET: " + targetWallet, delay: 60 },
+             { t: "BAGS: " + targetBags, delay: 75 },
+             { t: "HISTORY: " + targetHistory, delay: 90 },
+             { t: "RANK: " + targetRank, delay: 105 },
+             { t: targetFails, delay: 120 },
+           ];
+
+           for (let i = 0; i < lines.length; i++) {
+             if (cycle < lines[i].delay) break;
+             let alpha = map(i, 0, lines.length - 1, 255, 120);
+             let timeActive = cycle - lines[i].delay;
+             let dispText = lines[i].t;
+
+             if (timeActive >= 0 && timeActive < 25) { 
+               fill(CREAM[0], CREAM[1], CREAM[2], 255); 
+               drawingContext.shadowBlur = 8; 
+               drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.8)`; 
+               
+               let scrambled = "";
+               let solvedCount = floor(map(timeActive, 0, 25, 0, dispText.length));
+               let randSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*<>";
+               for(let c=0; c<dispText.length; c++) {
+                 if (dispText[c] === ' ' || dispText[c] === ':') scrambled += dispText[c];
+                 else if (c < solvedCount) scrambled += dispText[c];
+                 else scrambled += randSet[floor(random(randSet.length))];
+               }
+               dispText = scrambled;
+             }
+             else {
+               fill(RED[0], RED[1], RED[2], alpha);
+             }
+             
+             text("> " + dispText, 6, localY + 22 + i * 16);
+             drawingContext.shadowBlur = 0;
+           }
+
+           if (cycle > 140 && frameCount % 16 < 8) {
+             fill(255, 255, 255); textSize(9);
+             drawingContext.shadowBlur = 14; drawingContext.shadowColor = `rgba(255,255,255,1)`;
+             
+             let verdictText = targetVerdict;
+             let vTime = cycle - 140;
+             if (vTime >= 0 && vTime < 30) {
+               let scrambled = "";
+               let solvedCount = floor(map(vTime, 0, 30, 0, verdictText.length));
+               let randSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*<>";
+               for(let c=0; c<verdictText.length; c++) {
+                 if (verdictText[c] === ' ' || verdictText[c] === '>' || verdictText[c] === '<') scrambled += verdictText[c];
+                 else if (c < solvedCount) scrambled += verdictText[c];
+                 else scrambled += randSet[floor(random(randSet.length))];
+               }
+               verdictText = scrambled;
+             }
+             
+             text(verdictText, 6, localY + ph - 16);
+             drawingContext.shadowBlur = 0;
+           }
+           pop();
+        }
+      }
+      
+      // Massive Sonar Ring from the white point
+      if (cycle < 120) {
+        noFill(); 
+        stroke(RED[0], RED[1], RED[2], map(cycle, 0, 120, 200, 0)); 
+        strokeWeight(2);
+        circle(tx, ty, cycle * 12);
+        
+        stroke(CREAM[0], CREAM[1], CREAM[2], map(cycle, 0, 120, 100, 0)); 
+        strokeWeight(1);
+        circle(tx, ty, cycle * 15);
+      }
+
+      let scaleDot = 1;
+      if (cycle < 15) scaleDot = map(cycle, 0, 15, 0, 1);
+      else if (cycle > 475) scaleDot = map(cycle, 475, 490, 1, 0);
+      
+      let finalDotSz = (5 + sin(cycle * 0.2) * 2) * scaleDot;
+      if (finalDotSz > 0) {
+        // Contrast trick: Dark background mask
+        fill(BG[0], BG[1], BG[2]); noStroke();
+        circle(tx, ty, finalDotSz + 6);
+        
+        // Cream dot
+        drawingContext.shadowBlur = 18; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},1)`;
+        fill(CREAM[0], CREAM[1], CREAM[2]); 
+        circle(tx, ty, finalDotSz);
+        drawingContext.shadowBlur = 0;
+      }
+    }
+
+    function drawTerminal() {
+      let tx = 560, ty = cH / 2 - 100, tw = 200, th = 200;
+      push();
+      drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 150); strokeWeight(1.5); noFill();
+      rect(tx, ty, tw, th, 2); line(tx, ty + 16, tx + tw, ty + 16);
+      drawingContext.shadowBlur = 0;
+
+      noStroke(); fill(RB[0], RB[1], RB[2], 255); textSize(8.5); textAlign(LEFT, CENTER);
+      text("\u25b8 LIVE FEED", tx + 6, ty + 8);
+      if (frameCount % 40 < 20) { fill(RB[0], RB[1], RB[2]); ellipse(tx + tw - 8, ty + 8, 4, 4); }
+
+      textSize(7); textAlign(LEFT, TOP);
+      for (let i = 0; i < termLines.length && i < 8; i++) {
+        let e = termLines[i]; e.age++; e.chars += 1.2;
+        let alpha = map(i, 0, 7, 255, 80);
+        if (i === 0 && e.age < 10) { fill(CREAM[0], CREAM[1], CREAM[2], 255); drawingContext.shadowBlur = 12; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.8)`; }
+        else fill(RED[0], RED[1], RED[2], alpha);
+        let dt = e.text.substring(0, floor(e.chars));
+        text(dt, tx + 6, ty + 22 + i * 18);
+        if (i === 0 && floor(e.chars) < e.text.length) rect(tx + 6 + textWidth(dt) + 2, ty + 22 + i * 18 + 1, 4, 6);
+        drawingContext.shadowBlur = 0;
+      }
+      let sY = ty + 16 + ((frameCount * .8) % (th - 16));
+      stroke(RED[0], RED[1], RED[2], 18); strokeWeight(.8); line(tx + 2, sY, tx + tw - 2, sY);
+      pop();
+
+      noStroke();
+      drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},.6)`;
+      fill(CREAM[0], CREAM[1], CREAM[2], 255); textSize(10); textAlign(CENTER, CENTER);
+      text("AGENT LOG", tx + tw / 2, ty + th + 18);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 180); textSize(8); text("SINK NODE", tx + tw / 2, ty + th + 32);
+    }
+
+    function drawHUD() {
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      noStroke(); fill(RED[0], RED[1], RED[2], 255); textSize(13); textAlign(LEFT, TOP);
+      text("WALLET INTERROGATOR", 24, 24);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 200); textSize(8.5);
+      text("bobo_OS v6.9  \u00b7  ON-CHAIN FORENSICS", 24, 40);
+
+      textSize(13); textAlign(RIGHT, TOP);
+      let label = (frameCount % 60 < 30) ? "bobo_OS_" : "bobo_OS ";
+      fill(RED[0], RED[1], RED[2], 255); text(label, cW - 23, 18);
+      stroke(RED[0], RED[1], RED[2], 50); strokeWeight(.5); line(cW - 120, 36, cW - 8, 36);
+      noStroke(); fill(RED[0], RED[1], RED[2], 160); textSize(8.5); textAlign(RIGHT, TOP);
+      text("SYS " + nf(hour(), 2) + ":" + nf(minute(), 2) + ":" + nf(second(), 2), cW - 23, 42);
+      fill(MUTED[0], MUTED[1], MUTED[2], 120); textSize(7.5); text("FRM " + nf(frameCount, 6), cW - 23, 54);
+
+      noStroke(); fill(RED[0], RED[1], RED[2], 200); textSize(9); textAlign(LEFT, BOTTOM);
+      text("\u25c6 HELIUS: CONNECTED  \u25c6 SOL_MAINNET: SYNC  \u25c6 LAT: " + nf(random(8, 24), 1, 1) + "ms  \u25c6 " + floor(random(2400, 6800)) + " TX/s", 24, cH - 14);
+
+      if (logoImg) {
+        drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+        tint(255, 50, 90, 200);
+        imageMode(CENTER);
+        image(logoImg, cW - 40, cH - 40, 50, 50);
+        imageMode(CORNER);
+        noTint();
+        drawingContext.shadowBlur = 0;
+      }
+    }
+
+    function drawScanlines() {
+      noStroke(); for (let y = 0; y < cH; y += 3) { fill(0, 0, 0, 16); rect(0, y, cW, 1); }
+      let sy = (frameCount * 3) % cH; fill(RED[0], RED[1], RED[2], 8); rect(0, sy, cW, 30);
+      fill(RED[0], RED[1], RED[2], 15); rect(0, sy + 10, cW, 4);
+    }
+  </script>
+</body>
+</html>

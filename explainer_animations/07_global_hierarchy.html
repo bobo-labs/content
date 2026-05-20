@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — On-Chain Rank Registry</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG    = [5, 0, 2];
+    const RED   = [190, 1, 41];
+    const RB    = [255, 50, 90];
+    const CREAM = [254, 225, 191];
+    const MUTED = [138, 123, 120];
+
+    // Tier definitions matching actual rank system
+    const TIERS = [
+      { label: 'GOD KOL',     min: 1000, max: 9999,  col: CREAM,   glow: true,  count: 2  },
+      { label: 'WHALE',       min: 500,  max: 999,   col: [220,195,160], glow: false, count: 5  },
+      { label: 'MID HOLDER',  min: 100,  max: 499,   col: MUTED,   glow: false, count: 10 },
+      { label: 'TINY BAGS',   min: 1,    max: 99,    col: RED,     glow: false, count: 15 },
+      { label: 'BROKE GHOST', min: 0,    max: 0,     col: [60,15,20],glow: false,count: 18 },
+    ];
+
+    const b58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+    function rAddr() {
+      let a=""; for(let i=0;i<4;i++) a+=b58[floor(random(58))];
+      a+="..."; for(let i=0;i<4;i++) a+=b58[floor(random(58))];
+      return a;
+    }
+
+    let rows = [];
+    let logoImg;
+
+    function preload() { logoImg = loadImage('assets/logo-p-500.png'); }
+
+    function setup() {
+      createCanvas(W,H); pixelDensity(2); noSmooth(); textFont('monospace');
+      // Build leaderboard rows
+      let rank=1;
+      for(let ti=0;ti<TIERS.length;ti++){
+        let t=TIERS[ti];
+        for(let j=0;j<t.count;j++){
+          let bal = t.min===0 ? 0 : floor(random(t.min, t.max+1));
+          let roasts = floor(random(0, max(1, floor(bal/10))));
+          rows.push({ rank:rank++, addr:rAddr(), bal, tier:t.label, tierIdx:ti, roasts, col:t.col, glow:t.glow });
+        }
+      }
+    }
+
+    function brackets(ox,oy,w,h,m,b){
+      stroke(RED[0],RED[1],RED[2],100);strokeWeight(1.2);
+      line(ox-m,oy-m,ox-m+b,oy-m);line(ox-m,oy-m,ox-m,oy-m+b);
+      line(ox+w+m,oy-m,ox+w+m-b,oy-m);line(ox+w+m,oy-m,ox+w+m,oy-m+b);
+      line(ox-m,oy+h+m,ox-m+b,oy+h+m);line(ox-m,oy+h+m,ox-m,oy+h+m-b);
+      line(ox+w+m,oy+h+m,ox+w+m-b,oy+h+m);line(ox+w+m,oy+h+m,ox+w+m,oy+h+m-b);
+    }
+
+    function draw() {
+      background(BG[0],BG[1],BG[2]);
+      push(); scale(W/cW);
+      drawGrid();
+      drawLeaderboard();
+      drawTitleBlock(); // drawn over scroll so it masks rows at top
+      drawTierKey();
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0],RED[1],RED[2],30);strokeWeight(1);
+      let oy=(frameCount*.3)%40;
+      for(let x=0;x<cW;x+=40)line(x,0,x,cH);
+      for(let y=-40;y<cH+40;y+=40)line(0,y+oy,cW,y+oy);
+      noStroke();fill(RED[0],RED[1],RED[2],80);
+      for(let x=0;x<cW;x+=40)for(let y=-40;y<cH+40;y+=40)rect(x-1,y+oy-1,2,2);
+    }
+
+    // Column layout (within bx to bx+bw)
+    // RANK | WALLET | TIER | BALANCE | ROASTS
+    const BX = 30, BW = 530;
+    const COL_RANK   = BX + 10;
+    const COL_WALLET = BX + 55;
+    const COL_TIER   = BX + 180;
+    const COL_BAL    = BX + 340;
+    const COL_ROASTS = BX + BW - 10;
+    const ROW_START_Y = 148;
+    const ROW_H = 21;
+
+    function drawLeaderboard() {
+      let totalH = rows.length * ROW_H;
+      let scrollY = -(frameCount * 0.45) % totalH;
+
+      for(let pass=0; pass<2; pass++) {
+        let offsetY = pass === 0 ? scrollY : scrollY + totalH;
+        for(let i=0;i<rows.length;i++){
+          let r=rows[i];
+          let y=ROW_START_Y+i*ROW_H+offsetY;
+          if(y < ROW_START_Y-ROW_H || y > cH-50) continue;
+
+          let c=r.col;
+          let fadeAlpha = r.tierIdx===0?255:r.tierIdx===1?200:r.tierIdx===2?150:r.tierIdx===3?120:55;
+
+          // Row highlight for GOD KOL
+          if(r.glow){
+            fill(CREAM[0],CREAM[1],CREAM[2],12);noStroke();
+            rect(BX,y-ROW_H/2+2,BW,ROW_H-3);
+          }
+
+          if(r.glow){
+            drawingContext.shadowBlur=8;
+            drawingContext.shadowColor=`rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},0.7)`;
+          } else { drawingContext.shadowBlur=0; }
+
+          fill(c[0],c[1],c[2],fadeAlpha);noStroke();textSize(9);
+
+          // RANK
+          textAlign(LEFT,CENTER);
+          text(nf(r.rank,3),COL_RANK,y);
+
+          // WALLET
+          text("0x"+r.addr, COL_WALLET,y);
+
+          // TIER label with color coding
+          let tc=r.tierIdx===0?CREAM:r.tierIdx===1?[220,195,160]:r.tierIdx===2?MUTED:r.tierIdx===3?RB:[60,20,25];
+          fill(tc[0],tc[1],tc[2],fadeAlpha);
+          text(r.tier,COL_TIER,y);
+
+          // BALANCE
+          fill(c[0],c[1],c[2],fadeAlpha);
+          textAlign(RIGHT,CENTER);
+          text(r.bal===0?"—":r.bal.toLocaleString()+" $BOBO",COL_BAL,y);
+
+          // ROASTS
+          text(r.roasts,COL_ROASTS,y);
+
+          drawingContext.shadowBlur=0;
+
+          // Row separator
+          stroke(RED[0],RED[1],RED[2],fadeAlpha*0.15);strokeWeight(0.5);
+          line(BX+5,y+ROW_H/2,BX+BW-5,y+ROW_H/2);
+          noStroke();
+        }
+      }
+
+      // Bottom fade mask
+      let grad=drawingContext.createLinearGradient(0,cH-80,0,cH);
+      grad.addColorStop(0,`rgba(${BG[0]},${BG[1]},${BG[2]},0)`);
+      grad.addColorStop(1,`rgba(${BG[0]},${BG[1]},${BG[2]},1)`);
+      drawingContext.fillStyle=grad;
+      rect(0,cH-80,cW,80);
+    }
+
+    function drawTitleBlock() {
+      // Mask scrolling rows above the header
+      fill(BG[0],BG[1],BG[2],255);noStroke();
+      rect(0,0,cW,ROW_START_Y-2);
+
+      // Title banner
+      let by=72, bw=500, bh=28;
+      let bx=BX;
+      fill(RED[0],RED[1],RED[2],15);stroke(RED[0],RED[1],RED[2],100);strokeWeight(1);
+      rect(bx,by,bw,bh);
+      brackets(bx,by,bw,bh,6,10);
+
+      drawingContext.shadowBlur=10;drawingContext.shadowColor=`rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},1)`;
+      fill(CREAM[0],CREAM[1],CREAM[2],255);noStroke();textSize(12);textAlign(LEFT,CENTER);
+      text("ON-CHAIN RANK REGISTRY",bx+14,by+bh/2);
+      drawingContext.shadowBlur=0;
+      fill(RED[0],RED[1],RED[2],180);textSize(8);textAlign(RIGHT,CENTER);
+      text("HELIUS RPC  ·  LIVE",bx+bw-12,by+bh/2);
+
+      // Sub-title
+      fill(MUTED[0],MUTED[1],MUTED[2],160);textSize(7.5);textAlign(LEFT,TOP);
+      text("WALLET BALANCE DETERMINES RANK  ·  RANK DETERMINES HOW BOBO TREATS YOU",bx,by+bh+6);
+
+      // Column headers
+      let hy=ROW_START_Y-18;
+      fill(RED[0],RED[1],RED[2],150);textSize(8);textAlign(LEFT,TOP);
+      text("RNK",COL_RANK,hy);
+      text("WALLET HASH",COL_WALLET,hy);
+      text("RANK TIER",COL_TIER,hy);
+      textAlign(RIGHT,TOP);
+      text("$BOBO HELD",COL_BAL,hy);
+      text("ROASTS",COL_ROASTS,hy);
+      stroke(RED[0],RED[1],RED[2],50);strokeWeight(0.8);
+      line(BX,ROW_START_Y-5,BX+BW,ROW_START_Y-5);
+    }
+
+    function drawTierKey() {
+      // Right-side tier key panel
+      let kx=cW-195, ky=72, kw=168, kh=220;
+      fill(BG[0],BG[1],BG[2],220);stroke(RED[0],RED[1],RED[2],50);strokeWeight(1);
+      rect(kx,ky,kw,kh);
+      brackets(kx,ky,kw,kh,6,10);
+
+      noStroke();fill(RED[0],RED[1],RED[2],180);textSize(8);textAlign(LEFT,TOP);
+      text("RANK TIERS",kx+10,ky+10);
+      stroke(RED[0],RED[1],RED[2],40);line(kx+10,ky+22,kx+kw-10,ky+22);
+
+      let tierDefs=[
+        {name:'GOD KOL',    range:'1000+ $BOBO', col:CREAM,        desc:'FULL CLEARANCE'},
+        {name:'WHALE',      range:'500-999',      col:[220,195,160],desc:'DEEP RESPECT'},
+        {name:'MID HOLDER', range:'100-499',      col:MUTED,        desc:'NEGOTIATE'},
+        {name:'TINY BAGS',  range:'1-99',         col:RB,           desc:'BRIBE REQ.'},
+        {name:'BROKE GHOST',range:'0 $BOBO',      col:[80,25,30],   desc:'NO ACCESS'},
+      ];
+
+      noStroke();textSize(7.5);
+      for(let i=0;i<tierDefs.length;i++){
+        let d=tierDefs[i];
+        let ty=ky+34+i*36;
+        fill(d.col[0],d.col[1],d.col[2],i===0?255:i===1?200:i===2?160:i===3?180:80);
+        textAlign(LEFT,TOP); textSize(8);
+        if(i===0){drawingContext.shadowBlur=5;drawingContext.shadowColor=`rgba(255,220,180,0.6)`;}
+        text(d.name,kx+10,ty);
+        drawingContext.shadowBlur=0;
+        fill(MUTED[0],MUTED[1],MUTED[2],120);textSize(7);
+        text(d.range,kx+10,ty+11);
+        fill(RED[0],RED[1],RED[2],100);
+        text(d.desc,kx+10,ty+21);
+      }
+    }
+
+    function drawHUD() {
+      drawingContext.shadowBlur=6;drawingContext.shadowColor=`rgba(${RB[0]},${RB[1]},${RB[2]},.5)`;
+      noStroke();fill(RED[0],RED[1],RED[2],255);textSize(13);textAlign(LEFT,TOP);
+      text("ON-CHAIN RANK REGISTRY",24,24);
+      drawingContext.shadowBlur=0;
+      fill(RED[0],RED[1],RED[2],200);textSize(8.5);
+      text("bobo_OS v6.9  ·  HELIUS RPC  ·  TOKEN BALANCE = RANK",24,40);
+
+      textSize(13);textAlign(RIGHT,TOP);
+      let lb=(frameCount%60<30)?"bobo_OS_":"bobo_OS ";
+      fill(RED[0],RED[1],RED[2],255);text(lb,cW-23,18);
+      stroke(RED[0],RED[1],RED[2],50);strokeWeight(.5);line(cW-120,36,cW-8,36);
+      noStroke();fill(RED[0],RED[1],RED[2],160);textSize(8.5);textAlign(RIGHT,TOP);
+      text("SYS "+nf(hour(),2)+":"+nf(minute(),2)+":"+nf(second(),2),cW-23,42);
+      fill(MUTED[0],MUTED[1],MUTED[2],120);textSize(7.5);text("FRM "+nf(frameCount,6),cW-23,54);
+
+      noStroke();fill(RED[0],RED[1],RED[2],200);textSize(9);textAlign(LEFT,BOTTOM);
+      text("◆ TOTAL WALLETS: "+rows.length+"  ◆ GOD KOL ACTIVE: 2  ◆ SYNC: 100%  ◆ CHAIN: SOLANA",24,cH-14);
+
+      if(logoImg){
+        drawingContext.shadowBlur=10;drawingContext.shadowColor=`rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+        tint(255,50,90,200);imageMode(CENTER);
+        image(logoImg,cW-30,cH-30,40,40);
+        imageMode(CORNER);noTint();drawingContext.shadowBlur=0;
+      }
+    }
+
+    function drawScanlines(){
+      noStroke();
+      for(let y=0;y<cH;y+=3){fill(0,0,0,16);rect(0,y,cW,1);}
+      let sy=(frameCount*3)%cH;fill(RED[0],RED[1],RED[2],8);rect(0,sy,cW,30);
+      fill(RED[0],RED[1],RED[2],15);rect(0,sy+10,cW,4);
+    }
+  </script>
+</body>
+</html>

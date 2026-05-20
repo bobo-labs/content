@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — Mood Matrix</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG = [5, 0, 2], RED = [190, 1, 41], RB = [255, 50, 90], CREAM = [254, 225, 191], MUTED = [138, 123, 120];
+
+    const SILO = [
+      [0,1],[.89,1],[.86,.90],[.85,.83],[.83,.76],[.80,.72],[.75,.69],[.72,.68],
+      [.73,.66],[.78,.65],[.82,.63],[.85,.59],[.89,.54],[.90,.49],[.94,.44],[.95,.42],
+      [.98,.39],[1,.29],[.97,.24],[.92,.19],[.86,.14],[.83,.12],[.88,.09],[.87,.04],
+      [.83,0],[.78,0],[.73,.02],[.70,.05],[.64,.06],[.58,.08],[.54,.11],[.45,.07],
+      [.37,.07],[.32,.08],[.30,.03],[.23,0],[.17,.02],[.15,.07],[.17,.11],[.19,.14],
+      [.19,.20],[.18,.25],[.12,.28],[.09,.36],[.07,.45],[.05,.52],[.05,.61],[.08,.66],
+      [.09,.68],[.05,.72],[.03,.79],[.02,.85],[0,.92]
+    ];
+
+    let logoImg, pulsePhase = 0;
+    let targetNames = [
+      "@PAPER_HANDS_ANON", "@REKT_GUY_99", "@SHITCOIN_MAXI", "@BUY_HIGH_SELL_LOW",
+      "@NPC_TRADER", "@WEN_MOON_69", "@LIQUIDATED_AGAIN", "@RUG_PULLED_DEV"
+    ];
+    let currentTargetName = "@PAPER_HANDS_ANON";
+    let barTargets = [0, 0, 0, 0, 0, 0];
+
+    function preload() { logoImg = loadImage('assets/logo-p-500.png'); }
+    function dArc(cx, cy, r, n) { let g = TWO_PI / n, l = g * .55; for (let i = 0; i < n; i++) arc(cx, cy, r * 2, r * 2, i * g, i * g + l); }
+    function brackets(ox, oy, w, h, margin, bkL) {
+      stroke(RED[0], RED[1], RED[2], 100); strokeWeight(1.2);
+      line(ox-margin,oy-margin,ox-margin+bkL,oy-margin); line(ox-margin,oy-margin,ox-margin,oy-margin+bkL);
+      line(ox+w+margin,oy-margin,ox+w+margin-bkL,oy-margin); line(ox+w+margin,oy-margin,ox+w+margin,oy-margin+bkL);
+      line(ox-margin,oy+h+margin,ox-margin+bkL,oy+h+margin); line(ox-margin,oy+h+margin,ox-margin,oy+h+margin-bkL);
+      line(ox+w+margin,oy+h+margin,ox+w+margin-bkL,oy+h+margin); line(ox+w+margin,oy+h+margin,ox+w+margin,oy+h+margin-bkL);
+    }
+    function chev(x, y, s) { beginShape(); vertex(x-s,y-s/2); vertex(x,y); vertex(x-s,y+s/2); endShape(); beginShape(); vertex(x-s/2,y-s/2); vertex(x+s/2,y); vertex(x-s/2,y+s/2); endShape(); }
+
+    function setup() {
+      createCanvas(W, H); pixelDensity(2); noSmooth(); textFont('monospace'); imageMode(CENTER);
+    }
+
+    function draw() {
+      background(BG[0], BG[1], BG[2]);
+      push(); scale(W / cW);
+      drawGrid();
+
+      let cx = cW / 2 - 160, cy = cH / 2 - 40;
+      let cycle = frameCount % 500;
+
+      if (cycle === 0) {
+         currentTargetName = random(targetNames);
+         for(let i=0; i<6; i++) barTargets[i] = random(0.2, 0.95);
+      }
+
+      let leftX = cW / 2 - 160, leftY = cH / 2 - 40;
+      let rightX = cW / 2 + 50, rightY = cH / 2 - 150;
+
+      drawDataConduit(leftX, leftY, rightX, rightY, cycle);
+      drawBoboCore(leftX, leftY, cycle);
+      drawEqualizers(rightX, rightY, cycle);
+      drawMoodStatus(cycle);
+
+      pulsePhase *= .93;
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0], RED[1], RED[2], 30); strokeWeight(1);
+      let offY = (frameCount * .3) % 40;
+      for (let x = 0; x < cW; x += 40) line(x, 0, x, cH);
+      for (let y = -40; y < cH + 40; y += 40) line(0, y + offY, cW, y + offY);
+      noStroke(); fill(RED[0], RED[1], RED[2], 80);
+      for (let x = 0; x < cW; x += 40) for (let y = -40; y < cH + 40; y += 40) rect(x - 1, y + offY - 1, 2, 2);
+    }
+
+    function drawDataConduit(lx, ly, rx, ry, cycle) {
+      let startX = lx + 120; 
+      let startY = ly;
+      let endX = rx - 5; 
+      let endY = ry + 130; 
+      
+      let midX = (startX + endX) / 2;
+      
+      stroke(RED[0], RED[1], RED[2], 60); strokeWeight(1); noFill();
+      beginShape();
+      vertex(startX, startY);
+      vertex(midX - 10, startY);
+      vertex(midX + 10, endY);
+      vertex(endX, endY);
+      endShape();
+      
+      if (cycle < 80) {
+        let numPackets = 6;
+        for(let i=0; i<numPackets; i++) {
+          let t = ((frameCount * 0.02 + i/numPackets) % 1);
+          let px, py;
+          if (t < 0.4) {
+            px = map(t, 0, 0.4, startX, midX - 10);
+            py = startY;
+          } else if (t < 0.6) {
+            px = map(t, 0.4, 0.6, midX - 10, midX + 10);
+            py = map(t, 0.4, 0.6, startY, endY);
+          } else {
+            px = map(t, 0.6, 1, midX + 10, endX);
+            py = endY;
+          }
+          
+          drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(255,255,255,1)`;
+          fill(255, 255, 255, 200); noStroke();
+          rect(px - 2, py - 1, 4, 2);
+          drawingContext.shadowBlur = 0;
+        }
+      }
+    }
+
+    function drawBoboCore(cx, cy, cycle) {
+      let bW = 120, bH = 135;
+      let ox = cx - bW / 2, oy = cy - bH / 2;
+      
+      let pa = 100;
+      if (cycle < 80) pa = 100 + random(100); 
+      else if (cycle < 120) pa = map(cycle, 80, 120, 200, 100);
+      
+      drawingContext.shadowBlur = 15; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.8)`;
+      fill(BG[0], BG[1], BG[2], 255); stroke(RED[0], RED[1], RED[2], pa); strokeWeight(2);
+      beginShape(); for (let p of SILO) vertex(ox + p[0] * bW, oy + p[1] * bH); endShape(CLOSE);
+      drawingContext.shadowBlur = 0;
+      stroke(255, 255, 255, pa * 0.35); strokeWeight(0.5); noFill();
+      beginShape(); for (let p of SILO) vertex(ox + p[0] * bW, oy + p[1] * bH); endShape(CLOSE);
+
+      if (cycle < 80) {
+         drawingContext.save();
+         drawingContext.beginPath();
+         for (let p of SILO) drawingContext.lineTo(ox + p[0] * bW, oy + p[1] * bH);
+         drawingContext.closePath();
+         drawingContext.clip();
+         
+         stroke(255, 255, 255, 100); strokeWeight(1);
+         for(let i=0; i<10; i++) {
+            let scanY = oy + random(bH);
+            line(ox, scanY, ox + bW, scanY);
+         }
+         drawingContext.restore();
+      } else {
+         let roastLevel = barTargets[4]; 
+         let pulse = sin(frameCount * 0.1) * 50;
+         
+         drawingContext.save();
+         drawingContext.beginPath();
+         for (let p of SILO) drawingContext.lineTo(ox + p[0] * bW, oy + p[1] * bH);
+         drawingContext.closePath();
+         drawingContext.clip();
+         
+         noStroke();
+         if (roastLevel > 0.7) fill(RB[0], RB[1], RB[2], 50 + pulse);
+         else fill(MUTED[0], MUTED[1], MUTED[2], 50 + pulse);
+         rect(ox, oy, bW, bH);
+         drawingContext.restore();
+      }
+
+      push(); translate(cx, cy);
+      drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 60); strokeWeight(1); noFill();
+      push(); rotate(frameCount * 0.012); dArc(0, 0, 100, 3); pop();
+      push(); rotate(-frameCount * 0.008); dArc(0, 0, 120, 4); pop();
+      drawingContext.shadowBlur = 0;
+      pop();
+
+      brackets(ox - 30, oy - 30, bW + 60, bH + 60, 10, 14);
+
+      noStroke();
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},.4)`;
+      fill(CREAM[0], CREAM[1], CREAM[2], 255); textSize(12); textAlign(CENTER, CENTER);
+      text("NEURAL CORE", cx, oy + bH + 50);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 180); textSize(8); text("TARGET: " + currentTargetName, cx, oy + bH + 64);
+    }
+
+    function drawEqualizers(px, py, cycle) {
+      let panelW = 280, panelH = 260;
+      brackets(px, py, panelW, panelH, 6, 12);
+      
+      noStroke(); fill(RED[0], RED[1], RED[2], 200); textSize(9); textAlign(LEFT, TOP);
+      text("SENTIMENT ANALYSIS MATRIX", px + 10, py + 10);
+      stroke(RED[0], RED[1], RED[2], 50); line(px + 10, py + 22, px + panelW - 10, py + 22);
+      
+      let labels = ["COPE LEVEL", "FUD PROBABILITY", "PAPER HANDS", "WHALE PRESENCE", "ROAST INTENSITY", "SARCASM QUOTIENT"];
+      
+      for(let i=0; i<6; i++) {
+        let currentVal = 0;
+        if (cycle < 80) {
+           currentVal = random(); 
+        } else {
+           let t = constrain(map(cycle, 80, 120, 0, 1), 0, 1);
+           let eT = 1 - Math.pow(1 - t, 3);
+           currentVal = barTargets[i] * eT;
+        }
+        
+        let startY = py + 45 + i * 35;
+        noStroke(); fill(RED[0], RED[1], RED[2], 180); textSize(7.5); textAlign(LEFT, CENTER);
+        text(labels[i], px + 15, startY - 8);
+        
+        fill(MUTED[0], MUTED[1], MUTED[2], 150); textAlign(RIGHT, CENTER);
+        text(floor(currentVal * 100) + "%", px + panelW - 15, startY - 8);
+        
+        stroke(RED[0], RED[1], RED[2], 30); noFill();
+        rect(px + 15, startY, panelW - 30, 4);
+        
+        let segs = 40;
+        let sW = (panelW - 30) / segs;
+        let active = floor(currentVal * segs);
+        
+        noStroke();
+        for(let s=0; s<active; s++) {
+           let a = map(s, 0, segs, 50, 255);
+           fill(RB[0], RB[1], RB[2], a);
+           rect(px + 15 + s * sW, startY, sW - 1, 4);
+        }
+        
+        if (currentVal > 0 && cycle >= 80 && currentVal < barTargets[i]) {
+           let hX = px + 15 + active * sW;
+           fill(CREAM[0], CREAM[1], CREAM[2], 255);
+           drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(255,255,255,0.8)`;
+           rect(hX - 1, startY - 2, 2, 8);
+           drawingContext.shadowBlur = 0;
+        }
+      }
+    }
+
+    function drawMoodStatus(cycle) {
+      if (cycle < 120) return;
+
+      let roastLevel = barTargets[4];
+      let isRoast = roastLevel > 0.6;
+      let moodText = isRoast ? "AGGRESSIVE // DISGUSTED" : "UNIMPRESSED // BORED";
+      let subText = isRoast ? ">> INITIATING MAXIMUM ROAST SEQUENCE" : ">> TARGET NOT WORTHY OF MEME WARFARE";
+
+      let revealT = cycle - 120;
+      if (revealT > 0 && revealT < 30) {
+          let intensity = (30 - revealT) / 30;
+          let scrambled = "";
+          let randSet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%&*<>";
+          for(let i=0; i<moodText.length; i++) {
+             if (random() < intensity && moodText[i] !== ' ') scrambled += randSet[floor(random(randSet.length))];
+             else scrambled += moodText[i];
+          }
+          moodText = scrambled;
+      }
+      
+      let bw = 340, bh = 44;
+      let bx = cW / 2 - bw / 2, by = cH - 90;
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 120); strokeWeight(1); fill(BG[0], BG[1], BG[2], 200);
+      rect(bx, by, bw, bh, 2);
+      drawingContext.shadowBlur = 0;
+
+      noStroke(); textAlign(CENTER, CENTER); textSize(12);
+      fill(CREAM[0], CREAM[1], CREAM[2]);
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(255,255,255,.4)`;
+      text("DIAGNOSIS: " + moodText, cW/2, by + 16);
+      drawingContext.shadowBlur = 0;
+      
+      if (revealT > 30) {
+         fill(RED[0], RED[1], RED[2], 180); textSize(8);
+         text(subText, cW/2, by + 32);
+      }
+    }
+
+    function drawHUD() {
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      noStroke(); fill(RED[0], RED[1], RED[2], 255); textSize(13); textAlign(LEFT, TOP);
+      text("NEURAL MOOD MATRIX", 24, 24);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 200); textSize(8.5);
+      text("bobo_OS v6.9  \u00b7  REAL-TIME SENTIMENT", 24, 40);
+
+      textSize(13); textAlign(RIGHT, TOP);
+      let label = (frameCount % 60 < 30) ? "bobo_OS_" : "bobo_OS ";
+      fill(RED[0], RED[1], RED[2], 255); text(label, cW - 23, 18);
+      stroke(RED[0], RED[1], RED[2], 50); strokeWeight(.5); line(cW - 120, 36, cW - 8, 36);
+      noStroke(); fill(RED[0], RED[1], RED[2], 160); textSize(8.5); textAlign(RIGHT, TOP);
+      text("SYS " + nf(hour(), 2) + ":" + nf(minute(), 2) + ":" + nf(second(), 2), cW - 23, 42);
+      fill(MUTED[0], MUTED[1], MUTED[2], 120); textSize(7.5); text("FRM " + nf(frameCount, 6), cW - 23, 54);
+
+      noStroke(); fill(RED[0], RED[1], RED[2], 200); textSize(9); textAlign(LEFT, BOTTOM);
+      text("\u25c6 MOOD_ENGINE: ACTIVE  \u25c6 COPE_SCANNER: ON  \u25c6 TARGETS: " + floor(random(40, 200)) + "  \u25c6 " + floor(random(2400, 6800)) + " TX/s", 24, cH - 14);
+
+      if (logoImg) {
+        drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+        tint(255, 50, 90, 200);
+        imageMode(CENTER);
+        image(logoImg, cW - 30, cH - 30, 40, 40);
+        imageMode(CORNER);
+        noTint();
+        drawingContext.shadowBlur = 0;
+      }
+    }
+
+    function drawScanlines() {
+      noStroke(); for (let y = 0; y < cH; y += 3) { fill(0, 0, 0, 16); rect(0, y, cW, 1); }
+      let sy = (frameCount * 3) % cH; fill(RED[0], RED[1], RED[2], 8); rect(0, sy, cW, 30);
+      fill(RED[0], RED[1], RED[2], 15); rect(0, sy + 10, cW, 4);
+    }
+  </script>
+</body>
+</html>

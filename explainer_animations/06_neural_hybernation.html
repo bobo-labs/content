@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — Neural Hibernation</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #020001; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    // Dim palette — the system is in low-power sleep
+    const BG    = [2, 0, 1];
+    const RED   = [140, 8, 22];
+    const RB    = [200, 30, 50];
+    const CREAM = [170, 150, 130];
+    const MUTED = [75, 65, 65];
+    // Accent for timer
+    const DIM_CREAM = [190, 170, 145];
+
+    const SILO = [
+      [0,1],[.89,1],[.86,.90],[.85,.83],[.83,.76],[.80,.72],[.75,.69],[.72,.68],
+      [.73,.66],[.78,.65],[.82,.63],[.85,.59],[.89,.54],[.90,.49],[.94,.44],[.95,.42],
+      [.98,.39],[1,.29],[.97,.24],[.92,.19],[.86,.14],[.83,.12],[.88,.09],[.87,.04],
+      [.83,0],[.78,0],[.73,.02],[.70,.05],[.64,.06],[.58,.08],[.54,.11],[.45,.07],
+      [.37,.07],[.32,.08],[.30,.03],[.23,0],[.17,.02],[.15,.07],[.17,.11],[.19,.14],
+      [.19,.20],[.18,.25],[.12,.28],[.09,.36],[.07,.45],[.05,.52],[.05,.61],[.08,.66],
+      [.09,.68],[.05,.72],[.03,.79],[.02,.85],[0,.92]
+    ];
+
+    let logoImg;
+    let triggerTargets = ['@PAPER_HANDS_ANON','@REKT_GUY_99','@SHITCOIN_MAXI','@WEN_MOON_69'];
+    let triggerTarget = '@PAPER_HANDS_ANON';
+
+    function preload() { logoImg = loadImage('assets/logo-p-500.png'); }
+    function dArc(cx,cy,r,n){let g=TWO_PI/n,l=g*.55;for(let i=0;i<n;i++)arc(cx,cy,r*2,r*2,i*g,i*g+l);}
+    function brackets(ox,oy,w,h,m,b){
+      stroke(RED[0],RED[1],RED[2],70);strokeWeight(1);
+      line(ox-m,oy-m,ox-m+b,oy-m);line(ox-m,oy-m,ox-m,oy-m+b);
+      line(ox+w+m,oy-m,ox+w+m-b,oy-m);line(ox+w+m,oy-m,ox+w+m,oy-m+b);
+      line(ox-m,oy+h+m,ox-m+b,oy+h+m);line(ox-m,oy+h+m,ox-m,oy+h+m-b);
+      line(ox+w+m,oy+h+m,ox+w+m-b,oy+h+m);line(ox+w+m,oy+h+m,ox+w+m,oy+h+m-b);
+    }
+
+    function setup() {
+      createCanvas(W,H); pixelDensity(2); noSmooth(); textFont('monospace');
+    }
+
+    function draw() {
+      background(BG[0],BG[1],BG[2]);
+      push(); scale(W/cW);
+      drawGrid();
+
+      if (frameCount % 600 === 0) triggerTarget = random(triggerTargets);
+
+      let coreX = 80, coreY = cH/2 - 20;
+      let ekgX  = cW/2 + 40, ekgY = cH/2 + 115;
+      let logX  = cW - 190, logY = cH/2 - 165;
+
+      drawBoboCoreAsleep(coreX, coreY);
+      drawCountdown(cW/2 + 40, cH/2 - 50);
+      drawEKG(ekgX, ekgY);
+      drawTriggerLog(logX, logY);
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0],RED[1],RED[2],15); strokeWeight(1);
+      let oy=(frameCount*.08)%40;
+      for(let x=0;x<cW;x+=40)line(x,0,x,cH);
+      for(let y=-40;y<cH+40;y+=40)line(0,y+oy,cW,y+oy);
+      noStroke();fill(RED[0],RED[1],RED[2],30);
+      for(let x=0;x<cW;x+=40)for(let y=-40;y<cH+40;y+=40)rect(x-1,y+oy-1,2,2);
+    }
+
+    function drawBoboCoreAsleep(cx, cy) {
+      let bW=100, bH=112, ox=cx-bW/2, oy=cy-bH/2;
+      let breathe=(sin(frameCount*0.018)+1)/2;
+      let pa=18+breathe*38;
+
+      drawingContext.shadowBlur=12*breathe;
+      drawingContext.shadowColor=`rgba(${RB[0]},${RB[1]},${RB[2]},0.6)`;
+      fill(BG[0],BG[1],BG[2],255);
+      stroke(RED[0],RED[1],RED[2],pa); strokeWeight(1.5);
+      beginShape();for(let p of SILO)vertex(ox+p[0]*bW,oy+p[1]*bH);endShape(CLOSE);
+      drawingContext.shadowBlur=0;
+      stroke(255,255,255,pa*0.15);strokeWeight(0.4);noFill();
+      beginShape();for(let p of SILO)vertex(ox+p[0]*bW,oy+p[1]*bH);endShape(CLOSE);
+
+      // Sleep text interior
+      noStroke();
+      fill(RED[0],RED[1],RED[2],30+breathe*40); textSize(7); textAlign(CENTER,CENTER);
+      text("LOW POWER",cx,cy-8);
+      fill(MUTED[0],MUTED[1],MUTED[2],60+breathe*60); textSize(14);
+      text("Zzz",cx,cy+6);
+
+      // Very slow orbitals
+      push();translate(cx,cy);
+      stroke(RED[0],RED[1],RED[2],22);strokeWeight(0.8);noFill();
+      push();rotate(frameCount*0.004);dArc(0,0,80,3);pop();
+      push();rotate(-frameCount*0.003);dArc(0,0,95,4);pop();
+      pop();
+
+      brackets(ox-18,oy-18,bW+36,bH+36,8,10);
+
+      noStroke();fill(MUTED[0],MUTED[1],MUTED[2],100);textSize(7.5);textAlign(CENTER,TOP);
+      text("NEURAL CORE",cx,oy+bH+22);
+      fill(RED[0],RED[1],RED[2],120);textSize(7);
+      text("STATE: HIBERNATING",cx,oy+bH+34);
+
+      // Power bar
+      let pbW=90, pbY=oy+bH+48, pbX=cx-pbW/2;
+      stroke(RED[0],RED[1],RED[2],30);noFill();rect(pbX,pbY,pbW,5);
+      let powerPct=0.12+breathe*0.03;
+      noStroke();fill(RED[0],RED[1],RED[2],80);rect(pbX,pbY,pbW*powerPct,5);
+      fill(MUTED[0],MUTED[1],MUTED[2],100);textSize(6.5);textAlign(CENTER,TOP);
+      text("PWR: "+floor(powerPct*100)+"%",cx,pbY+8);
+    }
+
+    function drawCountdown(cx, cy) {
+      // Fake countdown: starts ~5h 30m, counts at ~8 sec per frame (accelerated)
+      let fakeSecs = (21000 - floor(frameCount * 8)) % 21600;
+      if(fakeSecs < 0) fakeSecs += 21600;
+      let hrs  = floor(fakeSecs/3600);
+      let mins = floor((fakeSecs%3600)/60);
+      let secs = fakeSecs%60;
+      let timeStr = nf(hrs,2)+":"+nf(mins,2)+":"+nf(secs,2);
+
+      // Container
+      let bw=340, bh=110;
+      fill(22, 8, 12, 210);
+      drawingContext.shadowBlur=25;
+      drawingContext.shadowColor=`rgba(${RED[0]},${RED[1]},${RED[2]},0.5)`;
+      stroke(RED[0],RED[1],RED[2],80);strokeWeight(1);
+      rect(cx-bw/2,cy-bh/2,bw,bh,6);
+      drawingContext.shadowBlur=0;
+      brackets(cx-bw/2,cy-bh/2,bw,bh,10,16);
+
+      // Header
+      noStroke();fill(RED[0],RED[1],RED[2],160);textSize(7.5);textAlign(CENTER,TOP);
+      text("SYBIL PROTECTION  //  6H AUTONOMOUS COOLDOWN",cx,cy-bh/2+10);
+      stroke(RED[0],RED[1],RED[2],30);line(cx-bw/2+10,cy-bh/2+22,cx+bw/2-10,cy-bh/2+22);
+
+      // Big timer
+      drawingContext.shadowBlur=15;
+      drawingContext.shadowColor=`rgba(${DIM_CREAM[0]},${DIM_CREAM[1]},${DIM_CREAM[2]},0.5)`;
+      fill(DIM_CREAM[0],DIM_CREAM[1],DIM_CREAM[2],220);noStroke();
+      textSize(54);textAlign(CENTER,CENTER);
+      text(timeStr,cx,cy+6);
+      drawingContext.shadowBlur=0;
+
+      // Sub label
+      fill(MUTED[0],MUTED[1],MUTED[2],130+sin(frameCount*0.08)*80);textSize(7.5);
+      text("T-MINUS UNTIL AGENT REACTIVATION",cx,cy+bh/2-14);
+
+      // Progress bar (how much cooldown is done)
+      let donePct = 1 - (fakeSecs/21600);
+      let pbW=bw-40, pbY=cy+bh/2-26, pbX=cx-pbW/2;
+      stroke(RED[0],RED[1],RED[2],25);noFill();rect(pbX,pbY,pbW,4);
+      noStroke();
+      for(let s=0;s<50;s++){
+        let pct=s/50;
+        if(pct>donePct)break;
+        fill(RED[0],RED[1],RED[2],map(s,0,50,30,120));
+        rect(pbX+s*(pbW/50),pbY,(pbW/50)-1,4);
+      }
+      // leading edge
+      let edgeX=pbX+donePct*pbW;
+      drawingContext.shadowBlur=6;drawingContext.shadowColor=`rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},0.7)`;
+      fill(CREAM[0],CREAM[1],CREAM[2],180);rect(edgeX-1,pbY-1,2,6);
+      drawingContext.shadowBlur=0;
+    }
+
+    function drawEKG(cx, cy) {
+      let w=340, h=65, ox=cx-w/2, oy=cy-h/2;
+      brackets(ox,oy,w,h,5,9);
+      stroke(RED[0],RED[1],RED[2],30);noFill();rect(ox,oy,w,h);
+      // inner grid
+      stroke(RED[0],RED[1],RED[2],12);strokeWeight(0.8);
+      for(let x=0;x<w;x+=12)line(ox+x,oy,ox+x,oy+h);
+      for(let y=0;y<h;y+=12)line(ox,oy+y,ox+w,oy+y);
+
+      // Slow dim heartbeat
+      let tOff=frameCount*0.3;
+      stroke(CREAM[0],CREAM[1],CREAM[2],90);strokeWeight(1.2);noFill();
+      beginShape();
+      for(let x=0;x<w;x++){
+        let t=(x+tOff)%w;
+        let yv=0;
+        let period=w*0.8;
+        let tMod=t%period;
+        let spike=period*0.5;
+        if(tMod>spike-8&&tMod<spike+8){
+          let p=(tMod-(spike-8))/16;
+          yv=sin(p*PI*2)*14*exp(-pow(p-0.5,2)*40);
+        }
+        vertex(ox+x, oy+h/2-yv);
+      }
+      endShape();
+
+      noStroke();fill(RED[0],RED[1],RED[2],130);textSize(7);textAlign(LEFT,TOP);
+      text("NEURAL HEARTBEAT",ox+6,oy+5);
+      textAlign(RIGHT,TOP);
+      let bpm=floor(18+sin(frameCount*0.01)*4);
+      text(bpm+" BPM  //  LOW POWER",ox+w-6,oy+5);
+      textAlign(RIGHT,BOTTOM);
+      fill(MUTED[0],MUTED[1],MUTED[2],100);textSize(6.5);
+      text("STANDBY",ox+w-6,oy+h-5);
+    }
+
+    function drawTriggerLog(px, py) {
+      let pw=175, ph=280;
+      fill(BG[0],BG[1],BG[2],200);stroke(RED[0],RED[1],RED[2],40);strokeWeight(1);
+      rect(px,py,pw,ph);
+      brackets(px,py,pw,ph,6,10);
+
+      noStroke();fill(RED[0],RED[1],RED[2],150);textSize(8);textAlign(LEFT,TOP);
+      text("COOLDOWN TRIGGER",px+10,py+10);
+      stroke(RED[0],RED[1],RED[2],30);line(px+10,py+22,px+pw-10,py+22);
+
+      noStroke();fill(MUTED[0],MUTED[1],MUTED[2],140);textSize(7);textAlign(LEFT,TOP);
+      text("LAST ROAST TARGET:",px+10,py+32);
+      fill(DIM_CREAM[0],DIM_CREAM[1],DIM_CREAM[2],180);textSize(8);
+      text(triggerTarget,px+10,py+44);
+
+      fill(MUTED[0],MUTED[1],MUTED[2],120);textSize(7);
+      text("TIMESTAMP:",px+10,py+62);
+      fill(RED[0],RED[1],RED[2],150);
+      text(nf(hour(),2)+":"+nf(minute(),2)+":"+nf(second(),2),px+10,py+74);
+
+      stroke(RED[0],RED[1],RED[2],25);line(px+10,py+90,px+pw-10,py+90);
+
+      let logs=[
+        "ROAST DEPLOYED TO X",
+        "DB: last_roast_at SET",
+        "COOLDOWN: 6H LOCK",
+        "HEURISTICS: OFFLINE",
+        "SYBIL GUARD: ACTIVE",
+        "QUEUE: BLOCKED",
+        "REQS REJECTED: "+floor(random(12,80)),
+      ];
+      noStroke();textSize(7);textAlign(LEFT,TOP);
+      for(let i=0;i<logs.length;i++){
+        let ly=py+100+i*22;
+        let fade=constrain(map(i,0,logs.length-1,160,80),0,160);
+        fill(MUTED[0],MUTED[1],MUTED[2],fade);
+        text("> "+logs[i],px+10,ly);
+        if(i===logs.length-1){
+          fill(RED[0],RED[1],RED[2],130+sin(frameCount*0.1)*80);
+          text("> "+logs[i],px+10,ly);
+        }
+      }
+
+      // Bottom pulsing status
+      let stY=py+ph-20;
+      stroke(RED[0],RED[1],RED[2],25);line(px+10,stY-4,px+pw-10,stY-4);
+      noStroke();fill(RED[0],RED[1],RED[2],100+sin(frameCount*0.12)*60);textSize(7);textAlign(LEFT,TOP);
+      text(">> PROTECTION: ON <<",px+10,stY);
+    }
+
+    function drawHUD() {
+      // Match style of other modules but dimmer
+      drawingContext.shadowBlur=4;drawingContext.shadowColor=`rgba(${RB[0]},${RB[1]},${RB[2]},.3)`;
+      noStroke();fill(RED[0],RED[1],RED[2],200);textSize(13);textAlign(LEFT,TOP);
+      text("NEURAL HIBERNATION",24,24);
+      drawingContext.shadowBlur=0;
+      fill(RED[0],RED[1],RED[2],160);textSize(8.5);
+      text("bobo_OS v6.9  ·  SYBIL PROTECTION  ·  AUTONOMOUS COOLDOWN",24,40);
+
+      textSize(13);textAlign(RIGHT,TOP);
+      let lb=(frameCount%90<45)?"bobo_OS_":"bobo_OS "; // slower blink
+      fill(RED[0],RED[1],RED[2],180);text(lb,cW-23,18);
+      stroke(RED[0],RED[1],RED[2],30);strokeWeight(.5);line(cW-120,36,cW-8,36);
+      noStroke();fill(RED[0],RED[1],RED[2],120);textSize(8.5);textAlign(RIGHT,TOP);
+      text("SYS "+nf(hour(),2)+":"+nf(minute(),2)+":"+nf(second(),2),cW-23,42);
+      fill(MUTED[0],MUTED[1],MUTED[2],100);textSize(7.5);text("PWR: 12%  //  STANDBY",cW-23,54);
+
+      noStroke();fill(MUTED[0],MUTED[1],MUTED[2],140);textSize(9);textAlign(LEFT,BOTTOM);
+      text("◆ PROTOCOL: SYBIL PROTECTION  ◆ LOCK: DB.last_roast_published_at  ◆ QUEUE: BLOCKED",24,cH-14);
+
+      if(logoImg){
+        drawingContext.shadowBlur=6;drawingContext.shadowColor=`rgba(${RED[0]},${RED[1]},${RED[2]},.3)`;
+        tint(200,30,50,140);imageMode(CENTER);
+        image(logoImg,cW-30,cH-30,40,40);
+        imageMode(CORNER);noTint();drawingContext.shadowBlur=0;
+      }
+    }
+
+    function drawScanlines() {
+      noStroke();
+      for(let y=0;y<cH;y+=3){fill(0,0,0,25);rect(0,y,cW,1);}
+      // Very dim CRT sweep — sleep mode
+      let sy=(frameCount*2)%cH;fill(RED[0],RED[1],RED[2],5);rect(0,sy,cW,40);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — Economic Sentiment Bypass</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG    = [5, 0, 2];
+    const RED   = [190, 1, 41];
+    const RB    = [255, 50, 90];
+    const CREAM = [254, 225, 191];
+    const MUTED = [138, 123, 120];
+    const GOLD  = [255, 175, 0];
+
+    const SILO = [
+      [0,1],[.89,1],[.86,.90],[.85,.83],[.83,.76],[.80,.72],[.75,.69],[.72,.68],
+      [.73,.66],[.78,.65],[.82,.63],[.85,.59],[.89,.54],[.90,.49],[.94,.44],[.95,.42],
+      [.98,.39],[1,.29],[.97,.24],[.92,.19],[.86,.14],[.83,.12],[.88,.09],[.87,.04],
+      [.83,0],[.78,0],[.73,.02],[.70,.05],[.64,.06],[.58,.08],[.54,.11],[.45,.07],
+      [.37,.07],[.32,.08],[.30,.03],[.23,0],[.17,.02],[.15,.07],[.17,.11],[.19,.14],
+      [.19,.20],[.18,.25],[.12,.28],[.09,.36],[.07,.45],[.05,.52],[.05,.61],[.08,.66],
+      [.09,.68],[.05,.72],[.03,.79],[.02,.85],[0,.92]
+    ];
+
+    // Abstract system log — no real dialogue revealed
+    const EVENTS = [
+      { t: 5,   text: 'OVERRIDE_INTENT: DETECTED',       col: 'CREAM' },
+      { t: 35,  text: 'BOBO.STATE >> NEGOTIATION_MODE',  col: 'RED'   },
+      { t: 70,  text: 'AMOUNT_INPUT: THRESHOLD_CHECK OK', col: 'CREAM' },
+      { t: 105, text: 'ROUTING >> WALLET_POPUP: INIT',    col: 'GOLD'  },
+      { t: 140, text: 'AWAITING USER SIGNATURE...',       col: 'MUTED' },
+    ];
+
+    // Cycle timing
+    const SD    = 60;   // start delay (awaiting state)
+    const POP   = 155;  // phantom popup in
+    const SIGN  = 240;  // user signs
+    const CONF  = 265;  // chain confirms
+    const BAN   = 280;  // bypass banner shows
+    const TOTAL = 440;
+
+    let logoImg;
+    function preload() { logoImg = loadImage('assets/logo-p-500.png'); }
+
+    function dArc(cx,cy,r,n){let g=TWO_PI/n,l=g*.55;for(let i=0;i<n;i++)arc(cx,cy,r*2,r*2,i*g,i*g+l);}
+    function brackets(ox,oy,w,h,m,b){
+      stroke(RED[0],RED[1],RED[2],100);strokeWeight(1.2);
+      line(ox-m,oy-m,ox-m+b,oy-m);line(ox-m,oy-m,ox-m,oy-m+b);
+      line(ox+w+m,oy-m,ox+w+m-b,oy-m);line(ox+w+m,oy-m,ox+w+m,oy-m+b);
+      line(ox-m,oy+h+m,ox-m+b,oy+h+m);line(ox-m,oy+h+m,ox-m,oy+h+m-b);
+      line(ox+w+m,oy+h+m,ox+w+m-b,oy+h+m);line(ox+w+m,oy+h+m,ox+w+m,oy+h+m-b);
+    }
+
+    function setup() { createCanvas(W,H); pixelDensity(2); noSmooth(); textFont('monospace'); }
+
+    function draw() {
+      background(BG[0],BG[1],BG[2]);
+      push(); scale(W/cW);
+      drawGrid();
+
+      let raw = frameCount % (TOTAL + SD);
+      let ac  = raw - SD;
+
+      let coreX = cW/2 - 155, coreY = cH/2 - 10;
+      let logX  = cW/2 + 20,  logY  = cH/2 - 150;
+
+      drawConduit(coreX, coreY, logX, logY, ac);
+      drawBoboCore(coreX, coreY, ac);
+      drawEventLog(logX, logY, ac);
+      if (ac >= POP) drawPhantomPopup(ac);
+      if (ac >= BAN && ac < TOTAL - 20) drawBypassBanner(ac);
+      drawHUD(ac);
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0],RED[1],RED[2],30); strokeWeight(1);
+      let oy=(frameCount*.3)%40;
+      for(let x=0;x<cW;x+=40)line(x,0,x,cH);
+      for(let y=-40;y<cH+40;y+=40)line(0,y+oy,cW,y+oy);
+      noStroke();fill(RED[0],RED[1],RED[2],80);
+      for(let x=0;x<cW;x+=40)for(let y=-40;y<cH+40;y+=40)rect(x-1,y+oy-1,2,2);
+    }
+
+    function drawConduit(lx, ly, rx, ry, ac) {
+      let sX=rx-5, sY=ry+150, eX=lx+70, eY=ly, mX=(sX+eX)/2;
+      stroke(RED[0],RED[1],RED[2],40); strokeWeight(1); noFill();
+      beginShape();
+        vertex(sX,sY); vertex(mX+10,sY); vertex(mX-10,eY); vertex(eX,eY);
+      endShape();
+
+      if (ac>=SIGN && ac<BAN+30) {
+        let flow=ac-SIGN;
+        for(let i=0;i<8;i++){
+          let t=((flow*0.04)-(i/8))%1;
+          if(t<0)continue;
+          let px,py;
+          if(t<0.4){px=map(t,0,0.4,sX,mX+10);py=sY;}
+          else if(t<0.6){px=map(t,0.4,0.6,mX+10,mX-10);py=map(t,0.4,0.6,sY,eY);}
+          else{px=map(t,0.6,1,mX-10,eX);py=eY;}
+          drawingContext.shadowBlur=10;
+          drawingContext.shadowColor=`rgba(255,175,0,1)`;
+          fill(GOLD[0],GOLD[1],GOLD[2],220);noStroke();
+          rect(px-3,py-1,6,2);
+          drawingContext.shadowBlur=0;
+        }
+      }
+    }
+
+    function drawBoboCore(cx, cy, ac) {
+      let bW=110,bH=125,ox=cx-bW/2,oy=cy-bH/2;
+      let ok=ac>=CONF;
+      let col=ok?GOLD:RED;
+      let pa=ok?90:(130+sin(frameCount*0.1)*50);
+      let gc=ok?`rgba(255,175,0,0.9)`:`rgba(${RB[0]},${RB[1]},${RB[2]},0.8)`;
+
+      drawingContext.shadowBlur=ok?20:14; drawingContext.shadowColor=gc;
+      fill(BG[0],BG[1],BG[2],255); stroke(col[0],col[1],col[2],pa); strokeWeight(2);
+      beginShape();for(let p of SILO)vertex(ox+p[0]*bW,oy+p[1]*bH);endShape(CLOSE);
+      drawingContext.shadowBlur=0;
+      stroke(255,255,255,pa*0.25); strokeWeight(0.4); noFill();
+      beginShape();for(let p of SILO)vertex(ox+p[0]*bW,oy+p[1]*bH);endShape(CLOSE);
+
+      let scanY=oy+(frameCount%bH);
+      stroke(255,255,255,ok?60:pa); strokeWeight(1);
+      drawingContext.shadowBlur=8; drawingContext.shadowColor=`rgba(255,255,255,0.5)`;
+      line(ox-4,scanY,ox+bW+4,scanY);
+      drawingContext.shadowBlur=0;
+
+      noStroke(); textAlign(CENTER,CENTER);
+      if(ac<0){
+        fill(RED[0],RED[1],RED[2],150+sin(frameCount*0.1)*80); textSize(8);
+        text(">> AWAITING <<",cx,cy);
+      } else if(!ok){
+        fill(RB[0],RB[1],RB[2],200); textSize(10); text("HOSTILE",cx,cy-6);
+        fill(RED[0],RED[1],RED[2],160); textSize(7);
+        text("GATE: CLOSED",cx,cy+8);
+      } else {
+        drawingContext.shadowBlur=10; drawingContext.shadowColor=`rgba(255,175,0,0.9)`;
+        fill(GOLD[0],GOLD[1],GOLD[2],230); textSize(10); text("COMPLIANT",cx,cy-6);
+        drawingContext.shadowBlur=0;
+        fill(CREAM[0],CREAM[1],CREAM[2],180); textSize(7);
+        text("GATE: BYPASSED",cx,cy+8);
+        text("OVERRIDE: ACTIVE",cx,cy+18);
+      }
+
+      push(); translate(cx,cy);
+      drawingContext.shadowBlur=8; drawingContext.shadowColor=gc;
+      stroke(col[0],col[1],col[2],50); strokeWeight(1); noFill();
+      push();rotate(frameCount*0.012);dArc(0,0,95,3);pop();
+      push();rotate(-frameCount*0.008);dArc(0,0,115,4);pop();
+      drawingContext.shadowBlur=0; pop();
+
+      brackets(ox-28,oy-28,bW+56,bH+56,10,14);
+      noStroke();
+      drawingContext.shadowBlur=6; drawingContext.shadowColor=`rgba(${col[0]},${col[1]},${col[2]},0.5)`;
+      fill(col[0],col[1],col[2],255); textSize(11); textAlign(CENTER,CENTER);
+      text("NEURAL CORE",cx,oy+bH+40);
+      drawingContext.shadowBlur=0;
+      fill(ok?GOLD[0]:RED[0],ok?GOLD[1]:RED[1],ok?GOLD[2]:RED[2],200); textSize(7.5);
+      text(ok?"STATE: COMPLIANT":"STATE: HOSTILE",cx,oy+bH+54);
+
+      // Glitch outro
+      if(ac>TOTAL-50){
+        let gT=(ac-(TOTAL-50))/30;
+        if(random()<0.65){
+          for(let i=0;i<floor(random(1,4));i++){
+            let sY=oy+random(bH), sH=random(4,16);
+            let xS=(random()>0.5?1:-1)*random(8,45)*gT;
+            drawingContext.save(); drawingContext.beginPath();
+            drawingContext.rect(ox-50,sY,bW+100,sH); drawingContext.clip();
+            fill(BG[0],BG[1],BG[2],255);noStroke();rect(ox-50,sY,bW+100,sH);
+            let cc=[[255,175,0],[0,200,255],CREAM][floor(random(3))];
+            stroke(cc[0],cc[1],cc[2],255);strokeWeight(1.2);noFill();
+            beginShape();for(let p of SILO)vertex(ox+xS+p[0]*bW,oy+p[1]*bH);endShape(CLOSE);
+            drawingContext.restore();
+          }
+        }
+      }
+    }
+
+    function drawEventLog(px, py, ac) {
+      let pw=290,ph=300;
+      fill(BG[0],BG[1],BG[2],200);stroke(RED[0],RED[1],RED[2],50);strokeWeight(1);
+      rect(px,py,pw,ph);
+      brackets(px,py,pw,ph,6,12);
+
+      noStroke();fill(RED[0],RED[1],RED[2],200);textSize(8.5);textAlign(LEFT,TOP);
+      text("OVERRIDE PROTOCOL  //  EVENT LOG",px+10,py+10);
+      stroke(RED[0],RED[1],RED[2],50);line(px+10,py+22,px+pw-10,py+22);
+
+      let lh=28, sy=py+34;
+      textSize(7.5);
+      for(let i=0;i<EVENTS.length;i++){
+        let e=EVENTS[i];
+        if(ac<e.t)break;
+        let chars=min(e.text.length,floor((ac-e.t)*2.5));
+        let disp=e.text.substring(0,chars)+(chars<e.text.length?"_":"");
+        let ly=sy+i*lh;
+        let c=e.col==='GOLD'?GOLD:e.col==='CREAM'?CREAM:e.col==='RED'?RB:MUTED;
+        noStroke();fill(RED[0],RED[1],RED[2],120);textAlign(LEFT,TOP);
+        text(">",px+12,ly);
+        fill(c[0],c[1],c[2],220);
+        text(disp,px+22,ly);
+      }
+
+      // Bottom status strip
+      let stY=py+ph-26;
+      stroke(RED[0],RED[1],RED[2],40);line(px+10,stY-4,px+pw-10,stY-4);
+      noStroke();textSize(7.5);textAlign(LEFT,TOP);
+      let scol=ac>=CONF?GOLD:RED;
+      let stxt=ac<0 ? ">> AWAITING TRIGGER <<"
+             :ac<SIGN? ">> ROUTING IN PROGRESS <<"
+             :ac<CONF ? ">> TX: PENDING SIGNATURE <<"
+             : ">> [OVERRIDE: CONFIRMED] <<";
+      fill(scol[0],scol[1],scol[2],170+sin(frameCount*0.15)*60);
+      text(stxt,px+12,stY+3);
+    }
+
+    function drawPhantomPopup(ac) {
+      let prog=constrain(map(ac,POP,POP+18,0,1),0,1);
+      prog=1-pow(1-prog,3);
+      let pw=238,ph=215;
+      let margin=12;
+      let px=cW - margin - pw + (pw + margin) * (1 - prog); // slides in from right
+      let py=margin;
+
+      let alpha=1;
+      if(ac>CONF+15) alpha=constrain(map(ac,CONF+15,CONF+38,1,0),0,1);
+      drawingContext.globalAlpha=alpha;
+      drawingContext.shadowBlur=28;
+      drawingContext.shadowColor=`rgba(255,175,0,0.35)`;
+
+      fill(12,6,10,252);stroke(GOLD[0],GOLD[1],GOLD[2],ac>=SIGN?255:120);strokeWeight(1.5);
+      rect(px,py,pw,ph,6);
+      drawingContext.shadowBlur=0;
+
+      // Header
+      fill(20,12,15,255);noStroke();rect(px,py,pw,28,6,6,0,0);
+      drawingContext.shadowBlur=8;drawingContext.shadowColor=`rgba(150,90,255,1)`;
+      fill(140,80,255,255);noStroke();circle(px+18,py+14,14);
+      drawingContext.shadowBlur=0;
+      fill(240,235,255,230);textSize(8.5);textAlign(LEFT,TOP);text("Phantom",px+30,py+9);
+      fill(MUTED[0],MUTED[1],MUTED[2],180);textSize(7);text("Solana · Mainnet-Beta",px+30,py+19);
+
+      // Body
+      fill(200,195,210,200);textSize(7.5);textAlign(CENTER,TOP);
+      text("APPROVE TRANSACTION",px+pw/2,py+36);
+      stroke(50,30,40,200);strokeWeight(1);line(px+10,py+50,px+pw-10,py+50);
+
+      noStroke();fill(MUTED[0],MUTED[1],MUTED[2],180);textSize(7);textAlign(LEFT,TOP);
+      text("SENDING",px+16,py+58);
+      drawingContext.shadowBlur=8;drawingContext.shadowColor=`rgba(255,175,0,0.9)`;
+      fill(GOLD[0],GOLD[1],GOLD[2],255);textSize(15);textAlign(LEFT,TOP);
+      text("[REDACTED] BOBO",px+16,py+68);
+      drawingContext.shadowBlur=0;
+
+      fill(MUTED[0],MUTED[1],MUTED[2],180);textSize(7);textAlign(LEFT,TOP);
+      text("TO",px+16,py+92);
+      fill(200,195,210,200);textSize(7.5);text("B0B0xA4...██████",px+16,py+103);
+
+      stroke(50,30,40,150);strokeWeight(1);line(px+10,py+118,px+pw-10,py+118);
+      noStroke();fill(MUTED[0],MUTED[1],MUTED[2],160);textSize(7);textAlign(LEFT,TOP);
+      text("NETWORK FEE",px+16,py+126);
+      fill(200,195,210,210);textSize(7.5);textAlign(RIGHT,TOP);text("0.000005 SOL",px+pw-16,py+126);
+
+      fill(MUTED[0],MUTED[1],MUTED[2],110);textSize(6.5);textAlign(LEFT,TOP);
+      text("CONTRACT: ████████████████████",px+16,py+144);
+
+      // Buttons
+      let bY=py+164;
+      stroke(RED[0],RED[1],RED[2],180);strokeWeight(1.5);fill(10,5,8,255);
+      rect(px+10,bY,pw/2-14,34,4);
+      noStroke();fill(RED[0],RED[1],RED[2],200);textSize(8);textAlign(CENTER,CENTER);
+      text("REJECT",px+10+(pw/2-14)/2,bY+17);
+
+      let approved=ac>=SIGN;
+      let pulse=approved?1:0.65+sin(frameCount*0.15)*0.35;
+      drawingContext.shadowBlur=approved?22:10;
+      drawingContext.shadowColor=`rgba(255,175,0,${pulse})`;
+      fill(floor(GOLD[0]*pulse),floor(GOLD[1]*pulse*0.65),0,255);noStroke();
+      rect(px+pw/2+4,bY,pw/2-14,34,4);
+      drawingContext.shadowBlur=0;
+      fill(5,5,8,255);textSize(8);textAlign(CENTER,CENTER);
+      text(approved?"✓  SIGNED":"APPROVE",px+pw/2+4+(pw/2-14)/2,bY+17);
+
+      drawingContext.globalAlpha=1;
+
+      // Amber bloom on sign
+      if(ac>=SIGN&&ac<SIGN+25){
+        let fa=map(ac,SIGN,SIGN+25,100,0);
+        noStroke();fill(GOLD[0],GOLD[1],GOLD[2],fa);rect(0,0,cW,cH);
+      }
+    }
+
+    function drawBypassBanner(ac) {
+      let rt=ac-BAN;
+      let px=cW/2,py=cH-88,bw=480,bh=70;
+      push();translate(px,py);
+
+      let grad=drawingContext.createLinearGradient(-bw/2,0,bw/2,0);
+      grad.addColorStop(0,`rgba(${BG[0]},${BG[1]},${BG[2]},0)`);
+      grad.addColorStop(0.08,`rgba(${BG[0]},${BG[1]},${BG[2]},1)`);
+      grad.addColorStop(0.92,`rgba(${BG[0]},${BG[1]},${BG[2]},1)`);
+      grad.addColorStop(1,`rgba(${BG[0]},${BG[1]},${BG[2]},0)`);
+      drawingContext.fillStyle=grad;
+      stroke(GOLD[0],GOLD[1],GOLD[2],255);strokeWeight(2);
+      drawingContext.shadowBlur=20;drawingContext.shadowColor=`rgba(255,175,0,0.9)`;
+      rect(-bw/2,-bh/2,bw,bh,8);
+      drawingContext.shadowBlur=0;
+
+      noStroke();
+      drawingContext.shadowBlur=10;drawingContext.shadowColor=`rgba(255,210,80,0.9)`;
+      fill(CREAM[0],CREAM[1],CREAM[2],255);textSize(12);textAlign(CENTER,CENTER);
+      text(">> LIQUIDITY DETECTED. HEURISTIC GATES BYPASSED. <<",0,-8);
+      drawingContext.shadowBlur=0;
+      fill(GOLD[0],GOLD[1],GOLD[2],220);textSize(8.5);
+      text("ECONOMIC SENTIMENT BYPASS  ·  [SYSTEM: BRIBE_CONFIRMED]",0,10);
+
+      if(rt>120){
+        let oT=rt-120;
+        let chars="01X_.:!/|\\";
+        noStroke();textSize(10);textAlign(CENTER,CENTER);
+        for(let i=0;i<80;i++){
+          let gx=floor(random(-bw/2,bw/2)/10)*10;
+          let gy=floor(random(-bh/2,bh/2)/10)*10;
+          let sx=gx+(random()>0.5?1:-1)*oT*random(1,8);
+          let sy=gy+(random()>0.5?1:-1)*oT*random(0.5,3);
+          let a=map(oT,0,30,255,0);
+          let c=random()>0.5?GOLD:CREAM;
+          fill(c[0],c[1],c[2],a);
+          text(chars[floor(random(chars.length))],sx,sy);
+        }
+      }
+      pop();
+    }
+
+    function drawHUD(ac) {
+      drawingContext.shadowBlur=6;drawingContext.shadowColor=`rgba(${RB[0]},${RB[1]},${RB[2]},.5)`;
+      noStroke();fill(RED[0],RED[1],RED[2],255);textSize(13);textAlign(LEFT,TOP);
+      text("ECONOMIC SENTIMENT BYPASS",24,24);
+      drawingContext.shadowBlur=0;
+      fill(RED[0],RED[1],RED[2],200);textSize(8.5);
+      text("bobo_OS v6.9  ·  FRICTIONLESS LIQUIDITY ROUTING",24,40);
+
+      textSize(13);textAlign(RIGHT,TOP);
+      let lb=(frameCount%60<30)?"bobo_OS_":"bobo_OS ";
+      fill(RED[0],RED[1],RED[2],255);text(lb,cW-23,18);
+      stroke(RED[0],RED[1],RED[2],50);strokeWeight(.5);line(cW-120,36,cW-8,36);
+      noStroke();fill(RED[0],RED[1],RED[2],160);textSize(8.5);textAlign(RIGHT,TOP);
+      text("SYS "+nf(hour(),2)+":"+nf(minute(),2)+":"+nf(second(),2),cW-23,42);
+      fill(MUTED[0],MUTED[1],MUTED[2],120);textSize(7.5);text("FRM "+nf(frameCount,6),cW-23,54);
+
+      noStroke();fill(RED[0],RED[1],RED[2],200);textSize(9);textAlign(LEFT,BOTTOM);
+      text("◆ WALLET: PHANTOM  ◆ NETWORK: SOLANA  ◆ TOKEN: $BOBO  ◆ FEES→$BOBO: ACTIVE",24,cH-14);
+
+      if(logoImg){
+        drawingContext.shadowBlur=10;drawingContext.shadowColor=`rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+        tint(255,50,90,200);imageMode(CENTER);
+        image(logoImg,cW-30,cH-30,40,40);
+        imageMode(CORNER);noTint();drawingContext.shadowBlur=0;
+      }
+    }
+
+    function drawScanlines(){
+      noStroke();
+      for(let y=0;y<cH;y+=3){fill(0,0,0,16);rect(0,y,cW,1);}
+      let sy=(frameCount*3)%cH;fill(RED[0],RED[1],RED[2],8);rect(0,sy,cW,30);
+      fill(RED[0],RED[1],RED[2],15);rect(0,sy+10,cW,4);
+    }
+  </script>
+</body>
+</html>

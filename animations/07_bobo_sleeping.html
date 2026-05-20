@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>bobo_OS — Sleep Mode</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #050002; overflow: hidden; cursor: none; display: flex; justify-content: center; align-items: center; }
+    canvas { display: block; }
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.11.1/p5.min.js"></script>
+  <script>
+    const W = 1440, H = 1051;
+    const cW = 800, cH = 584;
+    const BG = [5, 0, 2], RED = [190, 1, 41], RB = [255, 50, 90], CREAM = [254, 225, 191], MUTED = [138, 123, 120];
+
+    let frames = [], zzz = [];
+
+    function preload() { for (let i = 1; i <= 8; i++) frames.push(loadImage(`assets/sleeping/${i}.webp`)); }
+    function dArc(cx, cy, r, n) { let g = TWO_PI / n, l = g * .55; for (let i = 0; i < n; i++) arc(cx, cy, r * 2, r * 2, i * g, i * g + l); }
+    function brackets(ox, oy, w, h, margin, bkL) {
+      stroke(RED[0], RED[1], RED[2], 100); strokeWeight(1.2);
+      line(ox-margin,oy-margin,ox-margin+bkL,oy-margin); line(ox-margin,oy-margin,ox-margin,oy-margin+bkL);
+      line(ox+w+margin,oy-margin,ox+w+margin-bkL,oy-margin); line(ox+w+margin,oy-margin,ox+w+margin,oy-margin+bkL);
+      line(ox-margin,oy+h+margin,ox-margin+bkL,oy+h+margin); line(ox-margin,oy+h+margin,ox-margin,oy+h+margin-bkL);
+      line(ox+w+margin,oy+h+margin,ox+w+margin-bkL,oy+h+margin); line(ox+w+margin,oy+h+margin,ox+w+margin,oy+h+margin-bkL);
+    }
+
+    class Zzz {
+      constructor() { this.reset(); }
+      reset() { this.x = cW / 2 + random(40, 80); this.y = cH / 2 - 60; this.alpha = 255; this.sz = random(10, 18); this.spd = random(0.4, 0.8); this.drift = random(-0.3, 0.3); }
+      update() { this.y -= this.spd; this.x += this.drift; this.alpha -= 1.5; if (this.alpha <= 0) this.reset(); }
+      draw() {
+        drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.4)`;
+        fill(255, 255, 255, this.alpha); noStroke(); textSize(this.sz); textAlign(CENTER, CENTER);
+        text("Z", this.x, this.y);
+        drawingContext.shadowBlur = 0;
+      }
+    }
+
+    function setup() {
+      createCanvas(W, H); pixelDensity(2); noSmooth(); textFont('monospace'); imageMode(CENTER);
+      for (let i = 0; i < 5; i++) { let z = new Zzz(); z.alpha = random(50, 255); z.y = cH / 2 - random(10, 160); zzz.push(z); }
+    }
+
+    function draw() {
+      background(BG[0], BG[1], BG[2]);
+      push(); scale(W / cW);
+      drawGrid();
+
+      let cx = cW / 2, cy = cH / 2 - 20;
+
+      drawSleepingBobo(cx, cy);
+      drawStatusPanel(cx, cy);
+      drawHeartbeat(cx, cy);
+
+      for (let z of zzz) { z.update(); z.draw(); }
+
+      drawHUD();
+      drawScanlines();
+      pop();
+    }
+
+    function drawGrid() {
+      stroke(RED[0], RED[1], RED[2], 30); strokeWeight(1);
+      let offY = (frameCount * .15) % 40; // Slower grid for sleep
+      for (let x = 0; x < cW; x += 40) line(x, 0, x, cH);
+      for (let y = -40; y < cH + 40; y += 40) line(0, y + offY, cW, y + offY);
+      noStroke(); fill(RED[0], RED[1], RED[2], 80);
+      for (let x = 0; x < cW; x += 40) for (let y = -40; y < cH + 40; y += 40) rect(x - 1, y + offY - 1, 2, 2);
+    }
+
+    function drawSleepingBobo(cx, cy) {
+      // Slow rotating arcs (idle)
+      push(); translate(cx, cy);
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.3)`;
+      stroke(RED[0], RED[1], RED[2], 40); strokeWeight(1); noFill();
+      push(); rotate(frameCount * 0.005); dArc(0, 0, 100, 3); pop();
+      push(); rotate(-frameCount * 0.003); dArc(0, 0, 120, 4); pop();
+      drawingContext.shadowBlur = 0;
+      pop();
+
+      // Sleeping image
+      let fIndex = floor(frameCount / 12) % 8;
+      if (frames[fIndex]) {
+        drawingContext.shadowBlur = 25; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},0.35)`;
+        tint(255, 50, 90, 180);
+        image(frames[fIndex], cx, cy, 220, 220);
+        noTint();
+        drawingContext.shadowBlur = 0;
+      }
+
+      brackets(cx - 120, cy - 120, 240, 240, 10, 16);
+
+      noStroke();
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${CREAM[0]},${CREAM[1]},${CREAM[2]},.4)`;
+      fill(CREAM[0], CREAM[1], CREAM[2], 255); textSize(10); textAlign(CENTER, CENTER);
+      text("AGENT CORE", cx, cy + 138);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 180); textSize(8); text("HIBERNATING", cx, cy + 152);
+    }
+
+    function drawHeartbeat(cx, cy) {
+      let hx = 50, hy = cy + 170, hw = cW - 100;
+      stroke(RED[0], RED[1], RED[2], 60); strokeWeight(1); noFill();
+      line(hx, hy, hx + hw, hy);
+
+      // Slow heartbeat pulse
+      let breathe = sin(frameCount * 0.03);
+      strokeWeight(1.5);
+      drawingContext.shadowBlur = 8; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      stroke(RB[0], RB[1], RB[2], 200);
+      beginShape(); noFill();
+      for (let x = 0; x < hw; x += 2) {
+        let t = (x + frameCount * 1.5) % hw;
+        let spike = 0;
+        let phase = t % 200;
+        if (phase > 80 && phase < 90) spike = -30 * breathe;
+        else if (phase > 90 && phase < 100) spike = 20 * breathe;
+        else if (phase > 100 && phase < 105) spike = -10 * breathe;
+        vertex(hx + x, hy + spike);
+      }
+      endShape();
+      // White core
+      stroke(255, 255, 255, 100); strokeWeight(0.5);
+      beginShape(); noFill();
+      for (let x = 0; x < hw; x += 2) {
+        let t = (x + frameCount * 1.5) % hw;
+        let spike = 0;
+        let phase = t % 200;
+        if (phase > 80 && phase < 90) spike = -30 * breathe;
+        else if (phase > 90 && phase < 100) spike = 20 * breathe;
+        else if (phase > 100 && phase < 105) spike = -10 * breathe;
+        vertex(hx + x, hy + spike);
+      }
+      endShape();
+      drawingContext.shadowBlur = 0;
+    }
+
+    function drawStatusPanel(cx, cy) {
+      let px = 30, py = 70, pw = 180, ph = 120;
+      drawingContext.shadowBlur = 10; drawingContext.shadowColor = `rgba(${RED[0]},${RED[1]},${RED[2]},.5)`;
+      stroke(RED[0], RED[1], RED[2], 120); strokeWeight(1.5); noFill();
+      rect(px, py, pw, ph, 2); line(px, py + 16, px + pw, py + 16);
+      drawingContext.shadowBlur = 0;
+
+      noStroke(); fill(RB[0], RB[1], RB[2], 255); textSize(8.5); textAlign(LEFT, CENTER);
+      text("\u25b8 SYSTEM STATUS", px + 6, py + 8);
+
+      textSize(7.5); textAlign(LEFT, TOP);
+      let items = [
+        { t: "AGENT: SLEEPING", c: MUTED },
+        { t: "WALLETS QUEUED: 0", c: RED },
+        { t: "ROASTS PENDING: 0", c: RED },
+        { t: "NEXT WAKE: UNKNOWN", c: RED },
+        { t: "TREASURY: IDLE", c: RED },
+      ];
+      for (let i = 0; i < items.length; i++) {
+        fill(items[i].c[0], items[i].c[1], items[i].c[2], 180);
+        text("> " + items[i].t, px + 6, py + 22 + i * 16);
+      }
+    }
+
+    function drawHUD() {
+      drawingContext.shadowBlur = 6; drawingContext.shadowColor = `rgba(${RB[0]},${RB[1]},${RB[2]},.6)`;
+      noStroke(); fill(RED[0], RED[1], RED[2], 255); textSize(13); textAlign(LEFT, TOP);
+      text("SLEEP MODE", 24, 24);
+      drawingContext.shadowBlur = 0;
+      fill(RED[0], RED[1], RED[2], 200); textSize(8.5);
+      text("bobo_OS v6.9  \u00b7  SYSTEM HIBERNATION", 24, 40);
+
+      textSize(13); textAlign(RIGHT, TOP);
+      let blink = (frameCount % 120 < 60); // Slow blink for sleep
+      let label = blink ? "bobo_OS_" : "bobo_OS ";
+      fill(RED[0], RED[1], RED[2], 255); text(label, cW - 23, 18);
+      stroke(RED[0], RED[1], RED[2], 50); strokeWeight(.5); line(cW - 120, 36, cW - 8, 36);
+      noStroke(); fill(RED[0], RED[1], RED[2], 160); textSize(8.5); textAlign(RIGHT, TOP);
+      text("SYS " + nf(hour(), 2) + ":" + nf(minute(), 2) + ":" + nf(second(), 2), cW - 23, 42);
+      fill(MUTED[0], MUTED[1], MUTED[2], 120); textSize(7.5); text("FRM " + nf(frameCount, 6), cW - 23, 54);
+
+      noStroke(); fill(MUTED[0], MUTED[1], MUTED[2], 150); textSize(9); textAlign(LEFT, BOTTOM);
+      text("\u25c6 AGENT: HIBERNATING  \u25c6 HEARTBEAT: NORMAL  \u25c6 WAKE TRIGGER: WALLET_CONNECT", 24, cH - 14);
+    }
+
+    function drawScanlines() {
+      noStroke(); for (let y = 0; y < cH; y += 3) { fill(0, 0, 0, 16); rect(0, y, cW, 1); }
+      let sy = (frameCount * 1.5) % cH; // Slower scanline for sleep
+      fill(RED[0], RED[1], RED[2], 5); rect(0, sy, cW, 30);
+      fill(RED[0], RED[1], RED[2], 10); rect(0, sy + 10, cW, 4);
+    }
+  </script>
+</body>
+</html>
